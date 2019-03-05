@@ -333,16 +333,32 @@
       (insert-file-contents file)
       (goto-char (point-min))
       (let ((pos nil)
+            (keep-going t)
             (read-circle nil)
             (trawl--variables nil)
             (trawl--checked-variables nil))
-        (condition-case err
-            (while t
+            (while keep-going
               (setq pos (point))
-              (let ((form (read (current-buffer))))
-                (trawl--check-toplevel-form form file pos)))
-          (end-of-file nil)
-          (error (trawl--report file pos nil (prin1-to-string err))))))
+              (let ((form nil))
+                (condition-case err
+                    (setq form (read (current-buffer)))
+                  (end-of-file
+                   (setq keep-going nil))
+                  (invalid-read-syntax
+                   (cond
+                    ((equal (cadr err) "#")
+                     (goto-char pos)
+                     (forward-sexp 1))
+                    (t
+                     (trawl--report file (point) nil
+                                    (prin1-to-string err))
+                     (setq keep-going nil))))
+                  (error
+                   (trawl--report file (point) nil
+                                  (prin1-to-string err))
+                   (setq keep-going nil)))
+                (when form
+                  (trawl--check-toplevel-form form file pos))))))
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
         
