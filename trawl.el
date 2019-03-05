@@ -27,6 +27,10 @@
 ;; To use:  M-x trawl-file       (check a single elisp file)
 ;;      or  M-x trawl-directory  (check all .el files in a directory tree)
 ;;
+;; It can also be used from batch mode by calling `trawl--batch' with
+;; files and/or directories as command-line arguments, errors going
+;; to stderr.
+;;
 ;; Since there is no sure way to know whether a particular string is a
 ;; regexp, the code has to guess a lot, and will likely miss quite a
 ;; few. It looks at calls to known functions with regexp arguments,
@@ -81,10 +85,15 @@
       (cons (line-number-at-pos (point) t)
             (1+ (current-column))))))
 
+(defun trawl--output-error (string)
+  (if noninteractive
+      (message "%s" string)
+    (trawl--add-to-error-buffer (concat string "\n"))))
+
 (defun trawl--report (file pos path message)
   (let ((line-col (trawl--line-col-from-pos-path pos path)))
-    (trawl--add-to-error-buffer
-     (format "%s:%d:%d: %s\n" file (car line-col) (cdr line-col) message)))
+    (trawl--output-error
+     (format "%s:%d:%d: %s" file (car line-col) (cdr line-col) message)))
   (setq trawl--error-count (1+ trawl--error-count)))
 
 (defun trawl--quote-string (str)
@@ -322,9 +331,10 @@
   (trawl--check-form-recursively form file pos nil))
                       
 (defun trawl--show-errors ()
-  (let ((pop-up-windows t))
-    (display-buffer (trawl--error-buffer))
-    (sit-for 0)))
+  (unless noninteractive
+    (let ((pop-up-windows t))
+      (display-buffer (trawl--error-buffer))
+      (sit-for 0))))
 
 (defun trawl--single-file (file)
   (let ((errors-before trawl--error-count))
@@ -362,13 +372,18 @@
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
         
+(defun trawl--tree (dir)
+  (dolist (file (directory-files-recursively
+                 dir (rx bos (not (any ".")) (* anything) ".el" eos)))
+    (trawl--single-file file)))
+
 (defun trawl--init (file-or-dir dir)
-  (with-current-buffer (trawl--error-buffer)
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (insert (format ";; Trawling %s  -*- compilation -*-\n" file-or-dir)))
-    (setq trawl--error-count 0)
-    (cd dir)))
+  (unless noninteractive
+    (with-current-buffer (trawl--error-buffer)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format ";; Trawling %s  -*- compilation -*-\n" file-or-dir)))
+      (cd dir))))
 
 (defun trawl--finish ()
   (trawl--add-to-error-buffer "Finished.\n")
@@ -390,7 +405,20 @@
   "Scan all *.el files in DIR for errors in regexp strings."
   (interactive "DTrawl directory: ")
   (trawl--init dir dir)
-  (dolist (file (directory-files-recursively
-                 dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-    (trawl--single-file file))
+  (trawl--tree dir)
   (trawl--finish))
+
+
+(defun trawl--batch ()
+  "Scan elisp source files for errors in regex strings.
+Call this function in batch mode with files and directories as
+command-line arguments.  Files are scanned; directories are
+searched recursively for *.el files to scan."
+  (unless noninteractive
+    (error "`trawl--batch' is to be used only with -batch"))
+  (setq trawl--error-count 0)
+  (while command-line-args-left
+    (let ((arg (pop command-line-args-left)))
+      (if (file-directory-p arg)
+          (trawl--tree arg)
+        (trawl--single-file arg)))))
