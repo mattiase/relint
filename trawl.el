@@ -27,9 +27,11 @@
 ;; To use:  M-x trawl-file       (check a single elisp file)
 ;;      or  M-x trawl-directory  (check all .el files in a directory tree)
 ;;
-;; It can also be used from batch mode by calling `trawl--batch' with
+;; It can also be used from batch mode by calling `trawl-batch' with
 ;; files and/or directories as command-line arguments, errors going
-;; to stderr.
+;; to stderr:
+;;
+;;  emacs -batch -l trawl.el -f trawl-batch FILES-AND-DIRS...
 ;;
 ;; Since there is no sure way to know whether a particular string is a
 ;; regexp, the code has to guess a lot, and will likely miss quite a
@@ -409,7 +411,7 @@
   (trawl--finish))
 
 
-(defun trawl--batch ()
+(defun trawl-batch ()
   "Scan elisp source files for errors in regex strings.
 Call this function in batch mode with files and directories as
 command-line arguments.  Files are scanned; directories are
