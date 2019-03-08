@@ -118,13 +118,21 @@
            str t t)
           "\""))
 
+(defun trawl--caret-string (string pos)
+  (let ((quoted-pos
+         (- (length (trawl--quote-string (substring string 0 pos)))
+            2)))                        ; Lop off quotes
+    (concat (make-string quoted-pos ?.) "^")))
+
 (defun trawl--check-re-string (re name file pos path)
   (let ((complaints
          (condition-case err
 	     (mapcar (lambda (warning)
-                       (format "In %s: %s (pos %d): %s"
-                               name (cdr warning) (car warning)
-			       (trawl--quote-string re)))
+                       (let ((pos (car warning)))
+                         (format "In %s: %s (pos %d)\n  %s\n   %s"
+                                 name (cdr warning) pos
+                                 (trawl--quote-string re)
+                                 (trawl--caret-string re pos))))
 		     (xr-lint re))
 	   (error (list (format "In %s: Error: %s: %s"
 				name  (cadr err)
@@ -246,17 +254,6 @@
 
 (defun trawl--check-form-recursively (form file pos path)
   (pcase form
-;;;    (`(defun ,name ,_ . ,body)
-;;;     (let ((f body))
-;;;       (while (and f (consp (car f)) (eq (caar f) 'declare))
-;;;         (setq f (cdr f)))
-;;;       (when (and f (consp (car f)))
-;;;         (setq f (cdr f))
-;;;         (while (cdr f)
-;;;           (when (stringp (car f))
-;;;             (trawl--report file pos path
-;;;			    (format "defun %s: misplaced doc string" name)))
-;;;           (setq f (cdr f))))))
     (`(,(or `looking-at `re-search-forward `re-search-backward
             `string-match `string-match-p `looking-back `looking-at-p
             `replace-regexp-in-string `replace-regexp
