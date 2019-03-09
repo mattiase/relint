@@ -164,6 +164,7 @@
     (let ((val (cdr (assq form trawl--variables))))
       (and val (trawl--peel val))))
    ((not (consp form)) form)
+   ((consp form) (list (car form) (cdr form)))
    ((eq (car form) 'list)
     (trawl--peel (cdr form)))
    ((memq (car form) '(quote purecopy))
@@ -388,6 +389,7 @@
 (defun trawl-file (file)
   "Scan FILE, an elisp file, for errors in regexp strings."
   (interactive "fTrawl elisp file: ")
+  (setq trawl--error-count 0)
   (trawl--init file (file-name-directory file))
   (trawl--single-file file)
   (trawl--finish))
@@ -397,6 +399,7 @@
 (defun trawl-directory (dir)
   "Scan all *.el files in DIR for errors in regexp strings."
   (interactive "DTrawl directory: ")
+  (setq trawl--error-count 0)
   (trawl--init dir dir)
   (trawl--tree dir)
   (trawl--finish))
