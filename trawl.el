@@ -372,6 +372,7 @@
       (let ((inhibit-read-only t))
         (erase-buffer)
         (insert (format ";; Trawling %s  -*- compilation -*-\n" file-or-dir)))
+      (setq trawl--error-count 0)
       (cd dir))))
 
 (defun trawl--finish ()
