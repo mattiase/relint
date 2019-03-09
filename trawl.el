@@ -364,11 +364,12 @@
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
 
-(defun trawl--tree (dir)
+(defun trawl--tree (dir &optional excludes)
   (let ((excludes (or excludes "$^")))
     (dolist (file (directory-files-recursively
                    dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-      (trawl--single-file file))))
+      (unless (string-match excludes file)
+        (trawl--single-file file)))))
 
 (defun trawl--init (file-or-dir dir)
   (unless noninteractive
@@ -396,12 +397,13 @@
 
 
 ;;;###autoload
-(defun trawl-directory (dir)
-  "Scan all *.el files in DIR for errors in regexp strings."
+(defun trawl-directory (dir &optional excludes)
+  "Scan all *.el files in DIR for errors in regexp strings.
+Files matching EXCLUDES regex are ignored."
   (interactive "DTrawl directory: ")
   (setq trawl--error-count 0)
   (trawl--init dir dir)
-  (trawl--tree dir)
+  (trawl--tree dir excludes)
   (trawl--finish))
 
 
