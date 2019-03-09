@@ -2,8 +2,10 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.0
-;; Package-Requires: ((xr "1.4"))
+;; Package-Requires: ((xr "1.4") (emacs "25"))
 ;; Keywords: lisp, maint, regexps
+;; URL: https://github.com/mattiase/trawl.git
+;; Homepage: https://github.com/mattiase/trawl
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -35,7 +37,7 @@
 ;;
 ;; Since there is no sure way to know whether a particular string is a
 ;; regexp, the code has to guess a lot, and will likely miss quite a
-;; few. It looks at calls to known functions with regexp arguments,
+;; few.  It looks at calls to known functions with regexp arguments,
 ;; and at variables with regexp-sounding names.
 ;;
 ;; In other words, it is a nothing but a hack.
@@ -127,19 +129,19 @@
 (defun trawl--check-re-string (re name file pos path)
   (let ((complaints
          (condition-case err
-	     (mapcar (lambda (warning)
+             (mapcar (lambda (warning)
                        (let ((pos (car warning)))
                          (format "In %s: %s (pos %d)\n  %s\n   %s"
                                  name (cdr warning) pos
                                  (trawl--quote-string re)
                                  (trawl--caret-string re pos))))
-		     (xr-lint re))
-	   (error (list (format "In %s: Error: %s: %s"
-				name  (cadr err)
+                     (xr-lint re))
+           (error (list (format "In %s: Error: %s: %s"
+                                name  (cadr err)
                                 (trawl--quote-string re)))))))
     (mapc (lambda (msg) (trawl--report file pos path msg))
           complaints)))
-  
+
 ;; Alist of variable definitions seen so far.
 (defvar trawl--variables)
 
@@ -234,7 +236,7 @@
 (defun trawl--check-compilation-error-regexp-alist-alist
     (form name file pos path)
   (mapc (lambda (elem)
-	  (trawl--check-re
+          (trawl--check-re
            (cadr elem)
            (format "%s (%s)" name (car elem))
            file pos path))
@@ -248,7 +250,7 @@
                    (re-form (cdr (assq 'regexp (cdr rule))))
                    (re (trawl--get-string re-form)))
               (when (stringp re)
-                (trawl--check-re-string 
+                (trawl--check-re-string
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (trawl--peel-list form)))
 
@@ -270,11 +272,11 @@
      (when (symbolp name)
        (cond
         ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern") eos)
-			 (symbol-name name))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+                         (symbol-name name))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx (or "-regexps" "-regexes" "-patterns") eos)
-			 (symbol-name name))
+                         (symbol-name name))
          (trawl--check-list re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx "-font-lock-keywords" eos)
@@ -298,7 +300,7 @@
         ((and (stringp (car rest))
               (let ((case-fold-search t))
                 (string-match-p (rx bos "regexp") (car rest))))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         )
        (push (cons name re-arg) trawl--variables)))
@@ -318,7 +320,7 @@
 (defun trawl--check-toplevel-form (form file pos)
   (when (consp form)
     (trawl--check-form-recursively form file pos nil)))
-                      
+
 (defun trawl--show-errors ()
   (unless noninteractive
     (let ((pop-up-windows t))
@@ -336,35 +338,36 @@
             (read-circle nil)
             (trawl--variables nil)
             (trawl--checked-variables nil))
-            (while keep-going
-              (setq pos (point))
-              (let ((form nil))
-                (condition-case err
-                    (setq form (read (current-buffer)))
-                  (end-of-file
-                   (setq keep-going nil))
-                  (invalid-read-syntax
-                   (cond
-                    ((equal (cadr err) "#")
-                     (goto-char pos)
-                     (forward-sexp 1))
-                    (t
-                     (trawl--report file (point) nil
-                                    (prin1-to-string err))
-                     (setq keep-going nil))))
-                  (error
-                   (trawl--report file (point) nil
-                                  (prin1-to-string err))
-                   (setq keep-going nil)))
-                (when form
-                  (trawl--check-toplevel-form form file pos))))))
+        (while keep-going
+          (setq pos (point))
+          (let ((form nil))
+            (condition-case err
+                (setq form (read (current-buffer)))
+              (end-of-file
+               (setq keep-going nil))
+              (invalid-read-syntax
+               (cond
+                ((equal (cadr err) "#")
+                 (goto-char pos)
+                 (forward-sexp 1))
+                (t
+                 (trawl--report file (point) nil
+                                (prin1-to-string err))
+                 (setq keep-going nil))))
+              (error
+               (trawl--report file (point) nil
+                              (prin1-to-string err))
+               (setq keep-going nil)))
+            (when form
+              (trawl--check-toplevel-form form file pos))))))
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
-        
+
 (defun trawl--tree (dir)
-  (dolist (file (directory-files-recursively
-                 dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-    (trawl--single-file file)))
+  (let ((excludes (or excludes "$^")))
+    (dolist (file (directory-files-recursively
+                   dir (rx bos (not (any ".")) (* anything) ".el" eos)))
+      (trawl--single-file file))))
 
 (defun trawl--init (file-or-dir dir)
   (unless noninteractive
@@ -388,7 +391,7 @@
   (trawl--init file (file-name-directory file))
   (trawl--single-file file)
   (trawl--finish))
-        
+
 
 ;;;###autoload
 (defun trawl-directory (dir)
@@ -402,7 +405,7 @@
 (defun trawl-batch ()
   "Scan elisp source files for errors in regex strings.
 Call this function in batch mode with files and directories as
-command-line arguments.  Files are scanned; directories are
+`command-line' arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan."
   (unless noninteractive
     (error "`trawl--batch' is to be used only with -batch"))
@@ -412,3 +415,6 @@ searched recursively for *.el files to scan."
       (if (file-directory-p arg)
           (trawl--tree arg)
         (trawl--single-file arg)))))
+
+(provide 'trawl)
+;;; trawl.el ends here
