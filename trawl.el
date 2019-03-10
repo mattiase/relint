@@ -412,3 +412,7 @@ searched recursively for *.el files to scan."
       (if (file-directory-p arg)
           (trawl--tree arg)
         (trawl--single-file arg)))))
+
+(provide 'trawl)
+
+;;; trawl.el ends here
