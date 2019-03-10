@@ -365,7 +365,7 @@
       (trawl--show-errors))))
 
 (defun trawl--tree (dir &optional excludes)
-  (let ((excludes (or excludes "$^")))
+  (let ((excludes (or excludes "a\\`"))) ;;; don't match anything if not set
     (dolist (file (directory-files-recursively
                    dir (rx bos (not (any ".")) (* anything) ".el" eos)))
       (unless (string-match excludes file)
