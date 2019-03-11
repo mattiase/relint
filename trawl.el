@@ -148,6 +148,10 @@
 ;; checking direct uses of it.
 (defvar trawl--checked-variables)
 
+;; Alist of functions taking regexp argument(s).
+;; The names map to a list of the regexp argument indices.
+(defvar trawl--regexp-functions)
+
 ;; Whether form is a safe expression to evaluate.
 (defun trawl--safe-expr (form)
   (cond
@@ -535,7 +539,48 @@
        (trawl--check-font-lock-keywords font-lock-list origin
                                         file pos (cons 4 path))
        (trawl--check-list auto-mode-list origin file pos (cons 5 path))))
+    (`(,(or `defun `defmacro `defsubst)
+       ,name ,args . ,_)
+     ;; If any argument looks like a regexp, remember it so that it can be
+     ;; checked in calls.
+     (when (consp args)
+       (let ((indices nil)
+             (index 0))
+         (while args
+           (let ((arg (car args)))
+             (when (symbolp arg)
+               (cond
+                ((eq arg '&optional))
+                ((eq arg '&rest)
+                 (setq args nil))
+                (t
+                 (when (or (string-suffix-p "regexp" (symbol-name arg))
+                           (string-suffix-p "regex" (symbol-name arg))
+                           (eq arg 're)
+                           (string-suffix-p "-re" (symbol-name arg)))
+                   (push index indices))
+                 (setq index (1+ index)))))
+             (setq args (cdr args))))
+         (when indices
+           (push (cons name (reverse indices)) trawl--regexp-functions)))))
     )
+
+  ;; Check calls to remembered functions with regexp arguments.
+  (when (consp form)
+    (let ((indices (cdr (assq (car form) trawl--regexp-functions))))
+      (when indices
+        (let ((index 0)
+              (args (cdr form)))
+          (while (and indices args)
+            (when (= index (car indices))
+              (unless (and (symbolp (car args))
+                           (memq (car args) trawl--checked-variables))
+                (trawl--check-re (car args) (format "call to %s" (car form))
+                                 file pos (cons (1+ index) path)))
+              (setq indices (cdr indices)))
+            (setq args (cdr args))
+            (setq index (1+ index)))))))
+
   (let ((index 0))
     (while (consp form)
       (when (consp (car form))
@@ -563,7 +608,8 @@
             (keep-going t)
             (read-circle nil)
             (trawl--variables nil)
-            (trawl--checked-variables nil))
+            (trawl--checked-variables nil)
+            (trawl--regexp-functions nil))
             (while keep-going
               (setq pos (point))
 ;              (trawl--report file (point) nil "reading")
