@@ -141,105 +141,310 @@
           complaints)))
   
 ;; Alist of variable definitions seen so far.
+;; The variable names map to unevaluated forms.
 (defvar trawl--variables)
 
 ;; List of variables that have been checked, so that we can avoid
 ;; checking direct uses of it.
 (defvar trawl--checked-variables)
 
-(defun trawl--remove-comma (form)
+;; Whether form is a safe expression to evaluate.
+(defun trawl--safe-expr (form)
   (cond
-   ((not (consp form)) form)
-   ((eq (car form) '\,) (trawl--remove-comma (cadr form)))
-   (t
-    (cons (trawl--remove-comma (car form))
-          (trawl--remove-comma (cdr form))))))
+   ((symbolp form)
+    (or (memq form '(t nil))
+        (assq form trawl--variables)))
+   ((consp form)
+    (or (eq (car form) 'quote)
+        (and (trawl--safe-function (car form))
+             (not (memq nil (mapcar #'trawl--safe-expr (cdr form)))))))
+   (t t)))                              ; Other atoms assumed OK.
 
-;; Return a value peeled of irrelevancies.
-(defun trawl--peel (form)
+;; Whether f is safe to pass as a higher-order function in a call.
+(defun trawl--safe-function (f)
+  (when (and (consp f) (memq (car f) '(quote function)))
+    (setq f (cadr f)))
   (cond
-   ((and form (symbolp form))
-    (let ((val (cdr (assq form trawl--variables))))
-      (and val (trawl--peel val))))
-   ((not (consp form)) form)
-   ((eq (car form) 'list)
-    (trawl--peel (cdr form)))
-   ((memq (car form) '(quote purecopy))
-    (trawl--peel (cadr form)))
+   ;; Functions (and some special forms/macros) considered safe.
+   ((symbolp f)
+    (or (get f 'side-effect-free)
+        (memq f '(caar cadr cdar cddr purecopy remove remq
+                  if unless when and or
+                  regexp-opt regexp-opt-charset))))
+
+   ;; Only permit one-argument one-expression lambdas (for purity),
+   ;; where the body only refers to arguments and known variables,
+   ;; and calls safe functions.
+   ((and (consp f) (eq (car f) 'lambda))
+    (let ((vars (cadr f))
+          (body (cddr f)))
+      (and (= (length vars) 1)
+           (= (length body) 1)
+           (let ((trawl--variables
+                  (cons (cons (car vars) nil) trawl--variables)))
+             (trawl--safe-expr (car body))))))))
+
+;; Whether an `rx' form is safe to translate.
+(defun trawl--rx-safe (form)
+  (cond
+   ((atom form) t)
+   ((eq (car form) 'eval)
+    (let ((arg (trawl--eval (cadr form))))
+      (and (stringp arg)
+           (setcar (cdr form) arg))))    ; Avoid double work.
+   ;; Avoid traversing impure lists like (?A . ?Z).
+   ((memq (car form) '(any in char not-char)) t)
+   (t (not (memq nil (mapcar #'trawl--rx-safe (cdr form)))))))
+
+;; Evaluate a form as far as possible. Substructures that cannot be evaluated
+;; become `no-value'.
+(defun trawl--eval (form)
+  (cond
+   ((symbolp form)
+    (and form
+         (let ((binding (assq form trawl--variables)))
+           (if binding
+               (trawl--eval (cdr binding))
+             'no-value))))
+   ((atom form)
+    form)
+   ((not (symbolp (car form)))
+    (trawl--add-to-error-buffer (format "eval error: %S" form))
+    'no-value)
+   ((eq (car form) 'quote)
+    (cadr form))
    ((eq (car form) 'eval-when-compile)
-    (trawl--peel (car (last form))))
-   ((eq (car form) '\`)
-    (trawl--peel (trawl--remove-comma (cadr form))))
-   (t form)))
+    (trawl--eval (car (last form))))
+   ((eq (car form) 'lambda)
+    form)
 
-;; A list peeled of irrelevancies, or nil.
-(defun trawl--peel-list (form)
-  (let ((peeled (trawl--peel form)))
-    (and (consp peeled) peeled)))
+   ;; Reasonably pure functions: only call if all args can be fully evaluated.
+   ((or (get (car form) 'side-effect-free)
+        ;; Common functions that aren't marked as side-effect-free.
+        (memq (car form) '(caar cadr cdar cddr
+                           regexp-opt regexp-opt-charset
+                           decode-coding-string
+                           format-message format-spec
+                           purecopy remove remq
+                           ;; We don't mind them changing the match state.
+                           string-match string-match-p)))
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (memq 'no-value args)
+          'no-value
+        ;; Catching all errors isn't wonderful, but sometimes a global
+        ;; variable argument has an unsuitable default value which is supposed
+        ;; to have been changed at the expression point.
+        (condition-case nil
+            (apply (car form) args)
+          (error 'no-value)))))
 
-;; Convert something to a list of strings, or nil.
-(defun trawl--get-string-list (form)
-  (let ((parts (mapcar #'trawl--get-string (trawl--peel-list form))))
-    (if (memq nil parts)
-        nil
-      parts)))
+   ;; replace-regexp-in-string: Only safe if no function given.
+   ((eq (car form) 'replace-regexp-in-string)
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (and (not (memq 'no-value args))
+               (stringp (cadr args)))
+          (condition-case nil
+              (apply (car form) args)
+            (error 'no-value))
+        'no-value)))
+
+   ;; if, when, unless, and, or: Treat these as functions and eval all args.
+   ((memq (car form) '(if when unless and or))
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (memq 'no-value args)
+          'no-value
+        ;; eval is safe here: all args are quoted constants.
+        (eval (cons (car form)
+                    (mapcar (lambda (x) (list 'quote x)) args))))))
+
+   ((memq (car form) '(\` backquote-list*))
+    (trawl--eval (macroexpand form)))
+
+   ;; apply: Call only if the function is safe and all args evaluated.
+   ((eq (car form) 'apply)
+    (let ((fun (cadr form)))
+      (if (trawl--safe-function fun)
+          (let ((args (mapcar #'trawl--eval (cddr form))))
+            (if (memq 'no-value args)
+                'no-value
+              (condition-case nil
+                  (apply fun args)
+                (error 'no-value))))
+;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
+;                                            (car form) fun))
+        'no-value)))
+
+   ;; funcall: Call only if the function is safe and all args evaluated.
+   ((eq (car form) 'funcall)
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (and (not (memq 'no-value args))
+               (trawl--safe-function (car args)))
+          (condition-case nil
+              (apply (car args) (cdr args))
+            (error 'no-value))
+;        (trawl--add-to-error-buffer (format "unsafe funcall: %S -> %S\n"
+;                                            form args))
+        'no-value)))
+
+   ;; map*: Call only if the function is safe and all args evaluated.
+   ((memq (car form) '(mapcar mapconcat mapcan))
+    (let ((fun (cadr form)))
+      (if (trawl--safe-function fun)
+          (let ((args (mapcar #'trawl--eval (cddr form))))
+            (if (memq 'no-value args)
+                'no-value
+              (condition-case nil
+                  (apply (car form) fun args)
+                (error 'no-value))))
+;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
+;                                            (car form) fun))
+        'no-value)))
+          
+   ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
+   ((eq (car form) 'rx)
+    (if (trawl--rx-safe (cdr form))
+        (trawl--eval (macroexpand form))
+      'no-value))
+
+   ((eq (car form) 'rx-to-string)
+    (if (trawl--rx-safe (cdr form))
+        (let ((arg (trawl--eval (cadr form))))
+          (if (eq arg 'no-value)
+              'no-value
+            (apply 'rx-to-string (list arg))))
+      'no-value))
+
+   ;; setq: Ignore its side-effect and just pass on the value.
+   ((eq (car form) 'setq)
+    (let ((val (trawl--eval (caddr form))))
+      (if (eq val 'no-value)
+          'no-value
+        val)))
+
+   ;; let and let*: do not permit multi-expression bodies, since they
+   ;; will contain necessary side-effects that we don't handle.
+   ((and (eq (car form) 'let)
+         (null (cdddr form)))
+    (let ((bindings
+           (mapcar (lambda (binding)
+                     (if (consp binding)
+                         (cons (car binding)
+                               (list 'quote (trawl--eval (cadr binding))))
+                       (cons binding nil)))
+                   (cadr form))))
+      (let ((trawl--variables (append bindings trawl--variables)))
+        (trawl--eval (car (last form))))))
+
+   ;; let*: bind a single variable and recurse.
+   ((and (eq (car form) 'let*)
+         (null (cdddr form)))
+    (let ((bindings (cadr form)))
+      (if bindings
+          (let* ((binding (car bindings))
+                 (trawl--variables
+                  (cons
+                   (if (consp binding)
+                       (cons (car binding)
+                             (list 'quote (trawl--eval (cadr binding))))
+                     (cons binding nil))
+                   trawl--variables)))
+            (trawl--eval `(let* ,(cdr bindings) ,@(cddr form))))
+        (trawl--eval (car (last form))))))
+
+   ;; Loose comma: can occur if we unwittingly stumbled into a backquote
+   ;; form. Just eval the arg and hope for the best.
+   ((eq (car form) '\,)
+    (trawl--eval (cadr form)))
+
+   ((memq (car form) '(cond)) 'no-value)
+
+   (t
+;    (trawl--add-to-error-buffer (format "eval rule missing: %S\n" form))
+    'no-value)))
+
+;; Evaluate a form as far as possible, attempting to keep its list structure
+;; even if all subexpressions cannot be evaluated. Parts that cannot be
+;; evaluated are nil.
+(defun trawl--eval-list (form)
+  (cond
+   ((symbolp form)
+    (and form
+         (let ((val (cdr (assq form trawl--variables))))
+           (and val (trawl--eval-list val)))))
+   ((atom form)
+    form)
+   ((not (symbolp (car form)))
+    (trawl--add-to-error-buffer (format "eval error: %S\n" form))
+    nil)
+   ((eq (car form) 'eval-when-compile)
+    (trawl--eval-list (car (last form))))
+
+   ;; Pure structure-generating functions: Apply even if we cannot evaluate
+   ;; all arguments (they will be nil), because we want a reasonable
+   ;; approximation of the structure.
+   ((memq (car form) '(list append cons))
+    (apply (car form) (mapcar #'trawl--eval-list (cdr form))))
+
+   ((eq (car form) 'purecopy)
+    (trawl--eval-list (cadr form)))
+
+   ((memq (car form) '(\` backquote-list*))
+    (trawl--eval-list (macroexpand form)))
+
+   (t
+    (let ((val (trawl--eval form)))
+      (if (eq val 'no-value) nil val)))))
+
+;; Convert something to a list, or nil.
+(defun trawl--get-list (form)
+  (let ((val (trawl--eval-list form)))
+    (and (consp val) val)))
 
 ;; Convert something to a string, or nil.
 (defun trawl--get-string (form)
-  (setq form (trawl--peel form))
-  (cond
-   ((stringp form) form)
-   ((not (consp form)) nil)
-   ((eq (car form) 'concat)
-    (let ((parts (trawl--get-string-list (cdr form))))
-      (and parts (apply #'concat parts))))
-   ((eq (car form) 'regexp-opt)
-    (let ((arg (trawl--get-string-list (cadr form))))
-      (and arg (regexp-opt arg))))
-   ((eq (car form) 'regexp-quote)
-    (let ((arg (trawl--get-string (cadr form))))
-      (and arg (regexp-quote arg))))))
+  (let ((val (trawl--eval form)))
+    (and (stringp val) val)))
 
 (defun trawl--check-re (form name file pos path)
   (let ((re (trawl--get-string form)))
     (when re
       (trawl--check-re-string re name file pos path))))
 
+;; Check a list of regexps.
 (defun trawl--check-list (form name file pos path)
-  (mapc (lambda (elem) (trawl--check-re-string elem name file pos path))
-        (trawl--get-string-list form)))
+  ;; Don't use mapc -- mustn't crash on improper lists.
+  (let ((l (trawl--get-list form)))
+    (while (consp l)
+      (when (stringp (car l))
+        (trawl--check-re-string (car l) name file pos path))
+      (setq l (cdr l)))))
 
-(defun trawl--check-list-car (form name file pos path)
+;; Check a list of regexps or conses whose car is a regexp.
+(defun trawl--check-list-any (form name file pos path)
   (mapc (lambda (elem)
           (cond
-           ((not (consp elem)))
-           ((eq (car elem) 'cons)
-            (trawl--check-re (cadr elem) name file pos path))
-           (t
-            (trawl--check-re (car elem) name file pos path))))
-        (trawl--peel-list form)))
+           ((stringp elem)
+            (trawl--check-re-string elem name file pos path))
+           ((and (consp elem)
+                 (stringp (car elem)))
+            (trawl--check-re-string (car elem) name file pos path))))
+        (trawl--get-list form)))
 
 (defun trawl--check-font-lock-keywords (form name file pos path)
-  (mapc (lambda (elem)
-          (let* ((thing (trawl--peel elem))
-                 (str (trawl--get-string thing)))
-            (cond (str
-                   (trawl--check-re-string str name file pos path))
-                  ((eq (car thing) 'cons)
-                   (trawl--check-re (cadr thing) name file pos path))
-                  ((consp thing)
-                   (trawl--check-re (car thing) name file pos path)))))
-        (trawl--peel-list form)))
+  (trawl--check-list-any form name file pos path))
 
+;; Check regexps in `compilation-error-regexp-alist-alist'
 (defun trawl--check-compilation-error-regexp-alist-alist
     (form name file pos path)
   (mapc (lambda (elem)
-	  (trawl--check-re
-           (cadr elem)
-           (format "%s (%s)" name (car elem))
-           file pos path))
-        (trawl--peel-list form)))
+          (if (cadr elem)
+	      (trawl--check-re-string
+               (cadr elem)
+               (format "%s (%s)" name (car elem))
+               file pos path)))
+        (trawl--get-list form)))
 
+;; Check a variable on `align-mode-rules-list' format
 (defun trawl--check-rules-list (form name file pos path)
   (mapc (lambda (rule)
           (when (and (consp rule)
@@ -250,7 +455,9 @@
               (when (stringp re)
                 (trawl--check-re-string 
                  re (format "%s (%s)" name rule-name) file pos path)))))
-        (trawl--peel-list form)))
+        (trawl--get-list form)))
+
+;; FIXME: handle let-when-compile
 
 (defun trawl--check-form-recursively (form file pos path)
   (pcase form
@@ -259,12 +466,21 @@
             `replace-regexp-in-string `replace-regexp
             `query-replace-regexp
             `posix-looking-at `posix-search-backward `posix-search-forward
-            `posix-string-match)
+            `posix-string-match
+            `load-history-filename-element
+            `kill-matching-buffers)
        ,re-arg . ,_)
      (unless (and (symbolp re-arg)
                   (memq re-arg trawl--checked-variables))
        (trawl--check-re re-arg (format "call to %s" (car form))
                         file pos (cons 1 path))))
+    (`(,(or `split-string `split-string-and-unquote
+            `directory-files-recursively)
+       ,_ ,re-arg . ,_)
+     (unless (and (symbolp re-arg)
+                  (memq re-arg trawl--checked-variables))
+       (trawl--check-re re-arg (format "call to %s" (car form))
+                        file pos (cons 2 path))))
     (`(,(or `defvar `defconst `defcustom)
        ,name ,re-arg . ,rest)
      (when (symbolp name)
@@ -291,7 +507,11 @@
         ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern")
                              "-alist" eos)
                          (symbol-name name))
-         (trawl--check-list-car re-arg name file pos (cons 2 path))
+         (trawl--check-list-any re-arg name file pos (cons 2 path))
+         (push name trawl--checked-variables))
+        ((string-match-p (rx "-mode-alist" eos)
+                         (symbol-name name))
+         (trawl--check-list-any re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx "-rules-list" eos)
                          (symbol-name name))
@@ -341,6 +561,7 @@
             (trawl--checked-variables nil))
             (while keep-going
               (setq pos (point))
+;              (trawl--report file (point) nil "reading")
               (let ((form nil))
                 (condition-case err
                     (setq form (read (current-buffer)))
@@ -367,6 +588,7 @@
 (defun trawl--tree (dir)
   (dolist (file (directory-files-recursively
                  dir (rx bos (not (any ".")) (* anything) ".el" eos)))
+;    (trawl--add-to-error-buffer (format "trawling %s\n" file))
     (trawl--single-file file)))
 
 (defun trawl--init (file-or-dir dir)
