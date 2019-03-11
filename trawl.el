@@ -290,7 +290,12 @@
    ((memq (car form) '(mapcar mapconcat mapcan))
     (let ((fun (cadr form)))
       (if (trawl--safe-function fun)
-          (let ((args (mapcar #'trawl--eval (cddr form))))
+          (let ((args
+                 ;; Use trawl--eval-list when we believe that missing
+                 ;; elements may be acceptable.
+                 (if (eq (car form) 'mapconcat)
+                     (mapcar #'trawl--eval (cddr form))
+                   (delq nil (mapcar #'trawl--eval-list (cddr form))))))
             (if (memq 'no-value args)
                 'no-value
               (condition-case nil
