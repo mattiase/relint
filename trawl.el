@@ -471,13 +471,15 @@
             `posix-looking-at `posix-search-backward `posix-search-forward
             `posix-string-match
             `load-history-filename-element
-            `kill-matching-buffers)
+            `kill-matching-buffers
+            `keep-lines `flush-lines `how-many)
        ,re-arg . ,_)
      (unless (and (symbolp re-arg)
                   (memq re-arg trawl--checked-variables))
        (trawl--check-re re-arg (format "call to %s" (car form))
                         file pos (cons 1 path))))
     (`(,(or `split-string `split-string-and-unquote
+            `string-trim-left `string-trim-right
             `directory-files-recursively)
        ,_ ,re-arg . ,_)
      (unless (and (symbolp re-arg)
