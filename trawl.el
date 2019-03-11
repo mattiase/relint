@@ -1,7 +1,7 @@
 ;;; trawl.el --- Scan elisp files for regexp errors -*- lexical-binding: t -*-
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.0
+;; Version: 1.1
 ;; Package-Requires: ((xr "1.4"))
 ;; Keywords: lisp, maint, regexps
 
@@ -461,8 +461,6 @@
                 (trawl--check-re-string 
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (trawl--get-list form)))
-
-;; FIXME: handle let-when-compile
 
 (defun trawl--check-form-recursively (form file pos path)
   (pcase form
