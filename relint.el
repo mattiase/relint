@@ -801,11 +801,13 @@
     (when (> relint--error-count errors-before)
       (relint--show-errors))))
         
-(defun relint--tree (dir)
-  (dolist (file (directory-files-recursively
+(defun relint--tree (dir &optional excludes)
+  (let ((excludes (or excludes "a\\`")))
+    (dolist (file (directory-files-recursively
                  dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-    ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
-    (relint--single-file file)))
+      ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
+      (unless (string-match excludes file)
+	(relint--single-file file)))))
 
 (defun relint--init (file-or-dir dir)
   (unless noninteractive
@@ -832,11 +834,11 @@
         
 
 ;;;###autoload
-(defun relint-directory (dir)
+(defun relint-directory (dir &optional excludes)
   "Scan all *.el files in DIR for errors in regexp strings."
   (interactive "DRelint directory: ")
   (relint--init dir dir)
-  (relint--tree dir)
+  (relint--tree dir excludes)
   (relint--finish))
 
 
