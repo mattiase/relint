@@ -2,8 +2,10 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.1
-;; Package-Requires: ((xr "1.4"))
+;; Package-Requires: ((xr "1.4") (emacs "25"))
 ;; Keywords: lisp, maint, regexps
+;; URL: https://github.com/mattiase/trawl.git
+;; Homepage: https://github.com/mattiase/trawl
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -35,7 +37,7 @@
 ;;
 ;; Since there is no sure way to know whether a particular string is a
 ;; regexp, the code has to guess a lot, and will likely miss quite a
-;; few. It looks at calls to known functions with regexp arguments,
+;; few.  It looks at calls to known functions with regexp arguments,
 ;; and at variables with regexp-sounding names.
 ;;
 ;; In other words, it is a nothing but a hack.
@@ -127,19 +129,19 @@
 (defun trawl--check-re-string (re name file pos path)
   (let ((complaints
          (condition-case err
-	     (mapcar (lambda (warning)
+             (mapcar (lambda (warning)
                        (let ((pos (car warning)))
                          (format "In %s: %s (pos %d)\n  %s\n   %s"
                                  name (cdr warning) pos
                                  (trawl--quote-string re)
                                  (trawl--caret-string re pos))))
-		     (xr-lint re))
-	   (error (list (format "In %s: Error: %s: %s"
-				name  (cadr err)
+                     (xr-lint re))
+           (error (list (format "In %s: Error: %s: %s"
+                                name  (cadr err)
                                 (trawl--quote-string re)))))))
     (mapc (lambda (msg) (trawl--report file pos path msg))
           complaints)))
-  
+
 ;; Alist of variable definitions seen so far.
 ;; The variable names map to unevaluated forms.
 (defvar trawl--variables)
@@ -173,8 +175,8 @@
    ((symbolp f)
     (or (get f 'side-effect-free)
         (memq f '(caar cadr cdar cddr purecopy remove remq
-                  if unless when and or
-                  regexp-opt regexp-opt-charset))))
+                       if unless when and or
+                       regexp-opt regexp-opt-charset))))
 
    ;; Only permit one-argument one-expression lambdas (for purity),
    ;; where the body only refers to arguments and known variables,
@@ -226,12 +228,12 @@
    ((or (get (car form) 'side-effect-free)
         ;; Common functions that aren't marked as side-effect-free.
         (memq (car form) '(caar cadr cdar cddr
-                           regexp-opt regexp-opt-charset
-                           decode-coding-string
-                           format-message format-spec
-                           purecopy remove remq
-                           ;; We don't mind them changing the match state.
-                           string-match string-match-p)))
+				regexp-opt regexp-opt-charset
+				decode-coding-string
+				format-message format-spec
+				purecopy remove remq
+				;; We don't mind them changing the match state.
+				string-match string-match-p)))
     (let ((args (mapcar #'trawl--eval (cdr form))))
       (if (memq 'no-value args)
           'no-value
@@ -274,8 +276,8 @@
               (condition-case nil
                   (apply fun args)
                 (error 'no-value))))
-;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
-;                                            (car form) fun))
+					;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
+					;                                            (car form) fun))
         'no-value)))
 
    ;; funcall: Call only if the function is safe and all args evaluated.
@@ -286,8 +288,8 @@
           (condition-case nil
               (apply (car args) (cdr args))
             (error 'no-value))
-;        (trawl--add-to-error-buffer (format "unsafe funcall: %S -> %S\n"
-;                                            form args))
+					;        (trawl--add-to-error-buffer (format "unsafe funcall: %S -> %S\n"
+					;                                            form args))
         'no-value)))
 
    ;; map*: Call only if the function is safe and all args evaluated.
@@ -305,10 +307,10 @@
               (condition-case nil
                   (apply (car form) fun args)
                 (error 'no-value))))
-;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
-;                                            (car form) fun))
+					;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
+					;                                            (car form) fun))
         'no-value)))
-          
+   
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
    ((eq (car form) 'rx)
     (if (trawl--rx-safe (cons 'seq (cdr form)))
@@ -368,7 +370,7 @@
    ((memq (car form) '(cond)) 'no-value)
 
    (t
-;    (trawl--add-to-error-buffer (format "eval rule missing: %S\n" form))
+					;    (trawl--add-to-error-buffer (format "eval rule missing: %S\n" form))
     'no-value)))
 
 ;; Evaluate a form as far as possible, attempting to keep its list structure
@@ -447,7 +449,7 @@
     (form name file pos path)
   (mapc (lambda (elem)
           (if (cadr elem)
-	      (trawl--check-re-string
+              (trawl--check-re-string
                (cadr elem)
                (format "%s (%s)" name (car elem))
                file pos path)))
@@ -462,7 +464,7 @@
                    (re-form (cdr (assq 'regexp (cdr rule))))
                    (re (trawl--get-string re-form)))
               (when (stringp re)
-                (trawl--check-re-string 
+                (trawl--check-re-string
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (trawl--get-list form)))
 
@@ -495,14 +497,14 @@
      (when (symbolp name)
        (cond
         ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern") eos)
-			 (symbol-name name))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+                         (symbol-name name))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx (or (or "-regexps" "-regexes" "-patterns")
                                  (seq (or "-regexp" "-re" "-regex" "-pattern")
                                       "-list"))
                              eos)
-			 (symbol-name name))
+                         (symbol-name name))
          (trawl--check-list re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx "-font-lock-keywords" eos)
@@ -530,7 +532,7 @@
         ((and (stringp (car rest))
               (let ((case-fold-search t))
                 (string-match-p (rx bos "regexp") (car rest))))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         )
        (push (cons name re-arg) trawl--variables)))
@@ -591,7 +593,7 @@
 (defun trawl--check-toplevel-form (form file pos)
   (when (consp form)
     (trawl--check-form-recursively form file pos nil)))
-                      
+
 (defun trawl--show-errors ()
   (unless noninteractive
     (let ((pop-up-windows t))
@@ -610,36 +612,36 @@
             (trawl--variables nil)
             (trawl--checked-variables nil)
             (trawl--regexp-functions nil))
-            (while keep-going
-              (setq pos (point))
-;              (trawl--report file (point) nil "reading")
-              (let ((form nil))
-                (condition-case err
-                    (setq form (read (current-buffer)))
-                  (end-of-file
-                   (setq keep-going nil))
-                  (invalid-read-syntax
-                   (cond
-                    ((equal (cadr err) "#")
-                     (goto-char pos)
-                     (forward-sexp 1))
-                    (t
-                     (trawl--report file (point) nil
-                                    (prin1-to-string err))
-                     (setq keep-going nil))))
-                  (error
-                   (trawl--report file (point) nil
-                                  (prin1-to-string err))
-                   (setq keep-going nil)))
-                (when form
-                  (trawl--check-toplevel-form form file pos))))))
+        (while keep-going
+          (setq pos (point))
+					;              (trawl--report file (point) nil "reading")
+          (let ((form nil))
+            (condition-case err
+                (setq form (read (current-buffer)))
+              (end-of-file
+               (setq keep-going nil))
+              (invalid-read-syntax
+               (cond
+                ((equal (cadr err) "#")
+                 (goto-char pos)
+                 (forward-sexp 1))
+                (t
+                 (trawl--report file (point) nil
+                                (prin1-to-string err))
+                 (setq keep-going nil))))
+              (error
+               (trawl--report file (point) nil
+                              (prin1-to-string err))
+               (setq keep-going nil)))
+            (when form
+              (trawl--check-toplevel-form form file pos))))))
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
-        
+
 (defun trawl--tree (dir)
   (dolist (file (directory-files-recursively
                  dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-;    (trawl--add-to-error-buffer (format "trawling %s\n" file))
+					;    (trawl--add-to-error-buffer (format "trawling %s\n" file))
     (trawl--single-file file)))
 
 (defun trawl--init (file-or-dir dir)
@@ -664,7 +666,7 @@
   (trawl--init file (file-name-directory file))
   (trawl--single-file file)
   (trawl--finish))
-        
+
 
 ;;;###autoload
 (defun trawl-directory (dir)
@@ -678,7 +680,7 @@
 (defun trawl-batch ()
   "Scan elisp source files for errors in regex strings.
 Call this function in batch mode with files and directories as
-command-line arguments.  Files are scanned; directories are
+`command-line' arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan."
   (unless noninteractive
     (error "`trawl--batch' is to be used only with -batch"))
