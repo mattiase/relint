@@ -311,13 +311,13 @@
           
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
    ((eq (car form) 'rx)
-    (if (trawl--rx-safe (cdr form))
+    (if (trawl--rx-safe (cons 'seq (cdr form)))
         (trawl--eval (macroexpand form))
       'no-value))
 
    ((eq (car form) 'rx-to-string)
-    (if (trawl--rx-safe (cdr form))
-        (let ((arg (trawl--eval (cadr form))))
+    (let ((arg (trawl--eval (cadr form))))
+      (if (trawl--rx-safe arg)
           (if (eq arg 'no-value)
               'no-value
             (apply 'rx-to-string (list arg))))
