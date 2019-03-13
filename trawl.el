@@ -127,15 +127,15 @@
 (defun trawl--check-re-string (re name file pos path)
   (let ((complaints
          (condition-case err
-	     (mapcar (lambda (warning)
+             (mapcar (lambda (warning)
                        (let ((pos (car warning)))
                          (format "In %s: %s (pos %d)\n  %s\n   %s"
                                  name (cdr warning) pos
                                  (trawl--quote-string re)
                                  (trawl--caret-string re pos))))
-		     (xr-lint re))
-	   (error (list (format "In %s: Error: %s: %s"
-				name  (cadr err)
+                     (xr-lint re))
+           (error (list (format "In %s: Error: %s: %s"
+                                name  (cadr err)
                                 (trawl--quote-string re)))))))
     (mapc (lambda (msg) (trawl--report file pos path msg))
           complaints)))
@@ -509,14 +509,14 @@
      (when (symbolp name)
        (cond
         ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern") eos)
-			 (symbol-name name))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+                         (symbol-name name))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx (or (or "-regexps" "-regexes" "-patterns")
                                  (seq (or "-regexp" "-re" "-regex" "-pattern")
                                       "-list"))
                              eos)
-			 (symbol-name name))
+                         (symbol-name name))
          (trawl--check-list re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         ((string-match-p (rx "-font-lock-keywords" eos)
@@ -544,7 +544,7 @@
         ((and (stringp (car rest))
               (let ((case-fold-search t))
                 (string-match-p (rx bos "regexp") (car rest))))
-	 (trawl--check-re re-arg name file pos (cons 2 path))
+         (trawl--check-re re-arg name file pos (cons 2 path))
          (push name trawl--checked-variables))
         )
        (push (cons name re-arg) trawl--variables)))
@@ -624,36 +624,36 @@
             (trawl--variables nil)
             (trawl--checked-variables nil)
             (trawl--regexp-functions nil))
-            (while keep-going
-              (setq pos (point))
-;              (trawl--report file (point) nil "reading")
-              (let ((form nil))
-                (condition-case err
-                    (setq form (read (current-buffer)))
-                  (end-of-file
-                   (setq keep-going nil))
-                  (invalid-read-syntax
-                   (cond
-                    ((equal (cadr err) "#")
-                     (goto-char pos)
-                     (forward-sexp 1))
-                    (t
-                     (trawl--report file (point) nil
-                                    (prin1-to-string err))
-                     (setq keep-going nil))))
-                  (error
-                   (trawl--report file (point) nil
-                                  (prin1-to-string err))
-                   (setq keep-going nil)))
-                (when form
-                  (trawl--check-toplevel-form form file pos))))))
+        (while keep-going
+          (setq pos (point))
+          ;;(trawl--report file (point) nil "reading")
+          (let ((form nil))
+            (condition-case err
+                (setq form (read (current-buffer)))
+              (end-of-file
+               (setq keep-going nil))
+              (invalid-read-syntax
+               (cond
+                ((equal (cadr err) "#")
+                 (goto-char pos)
+                 (forward-sexp 1))
+                (t
+                 (trawl--report file (point) nil
+                                (prin1-to-string err))
+                 (setq keep-going nil))))
+              (error
+               (trawl--report file (point) nil
+                              (prin1-to-string err))
+               (setq keep-going nil)))
+            (when form
+              (trawl--check-toplevel-form form file pos))))))
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
         
 (defun trawl--tree (dir)
   (dolist (file (directory-files-recursively
                  dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-;    (trawl--add-to-error-buffer (format "trawling %s\n" file))
+    ;;(trawl--add-to-error-buffer (format "trawling %s\n" file))
     (trawl--single-file file)))
 
 (defun trawl--init (file-or-dir dir)
