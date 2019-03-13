@@ -585,7 +585,7 @@
       (when indices
         (let ((index 0)
               (args (cdr form)))
-          (while (and indices args)
+          (while (and indices (consp args))
             (when (= index (car indices))
               (unless (and (symbolp (car args))
                            (memq (car args) trawl--checked-variables))
