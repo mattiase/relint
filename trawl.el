@@ -200,6 +200,16 @@
    ((memq (car form) '(any in char not-char)) t)
    (t (not (memq nil (mapcar #'trawl--rx-safe (cdr form)))))))
 
+(define-error 'trawl--eval-error "trawl expression evaluation error")
+
+;; Evaluate an `rx-to-string' expression if safe.
+(defun trawl--eval-rx (args)
+  (if (trawl--rx-safe (car args))
+      (condition-case err
+          (apply #'rx-to-string args)
+        (error (signal 'trawl--eval-error (format "rx error: %s" (cadr err)))))
+    'no-value))
+
 ;; Evaluate a form as far as possible. Substructures that cannot be evaluated
 ;; become `no-value'.
 (defun trawl--eval (form)
@@ -227,10 +237,11 @@
         ;; Common functions that aren't marked as side-effect-free.
         (memq (car form) '(caar cadr cdar cddr
                            regexp-opt regexp-opt-charset
+                           ;; alters last-coding-system-used
                            decode-coding-string
                            format-message format-spec
                            purecopy remove remq
-                           ;; We don't mind them changing the match state.
+                           ;; alters match state
                            string-match string-match-p)))
     (let ((args (mapcar #'trawl--eval (cdr form))))
       (if (memq 'no-value args)
@@ -311,17 +322,13 @@
           
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
    ((eq (car form) 'rx)
-    (if (trawl--rx-safe (cons 'seq (cdr form)))
-        (trawl--eval (macroexpand form))
-      'no-value))
+    (trawl--eval-rx (list (cons 'seq (cdr form)) t)))
 
    ((eq (car form) 'rx-to-string)
-    (let ((arg (trawl--eval (cadr form))))
-      (if (trawl--rx-safe arg)
-          (if (eq arg 'no-value)
-              'no-value
-            (apply 'rx-to-string (list arg))))
-      'no-value))
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (memq 'no-value args)
+          'no-value
+        (trawl--eval-rx args))))
 
    ;; setq: Ignore its side-effect and just pass on the value.
    ((eq (car form) 'setq)
@@ -405,24 +412,31 @@
       (if (eq val 'no-value) nil val)))))
 
 ;; Convert something to a list, or nil.
-(defun trawl--get-list (form)
-  (let ((val (trawl--eval-list form)))
-    (and (consp val) val)))
+(defun trawl--get-list (form file pos path)
+  (condition-case err
+      (let ((val (trawl--eval-list form)))
+        (and (consp val) val))
+    (trawl--eval-error (trawl--report file pos path (cdr err))
+                       nil)))
+  
 
 ;; Convert something to a string, or nil.
-(defun trawl--get-string (form)
-  (let ((val (trawl--eval form)))
-    (and (stringp val) val)))
+(defun trawl--get-string (form file pos path)
+  (condition-case err
+      (let ((val (trawl--eval form)))
+        (and (stringp val) val))
+    (trawl--eval-error (trawl--report file pos path (cdr err))
+                       nil)))
 
 (defun trawl--check-re (form name file pos path)
-  (let ((re (trawl--get-string form)))
+  (let ((re (trawl--get-string form file pos path)))
     (when re
       (trawl--check-re-string re name file pos path))))
 
 ;; Check a list of regexps.
 (defun trawl--check-list (form name file pos path)
   ;; Don't use mapc -- mustn't crash on improper lists.
-  (let ((l (trawl--get-list form)))
+  (let ((l (trawl--get-list form file pos path)))
     (while (consp l)
       (when (stringp (car l))
         (trawl--check-re-string (car l) name file pos path))
@@ -437,7 +451,7 @@
            ((and (consp elem)
                  (stringp (car elem)))
             (trawl--check-re-string (car elem) name file pos path))))
-        (trawl--get-list form)))
+        (trawl--get-list form file pos path)))
 
 (defun trawl--check-font-lock-keywords (form name file pos path)
   (trawl--check-list-any form name file pos path))
@@ -447,11 +461,11 @@
     (form name file pos path)
   (mapc (lambda (elem)
           (if (cadr elem)
-	      (trawl--check-re-string
+              (trawl--check-re-string
                (cadr elem)
                (format "%s (%s)" name (car elem))
                file pos path)))
-        (trawl--get-list form)))
+        (trawl--get-list form file pos path)))
 
 ;; Check a variable on `align-mode-rules-list' format
 (defun trawl--check-rules-list (form name file pos path)
@@ -460,11 +474,11 @@
                      (symbolp (car rule)))
             (let* ((rule-name (car rule))
                    (re-form (cdr (assq 'regexp (cdr rule))))
-                   (re (trawl--get-string re-form)))
+                   (re (trawl--get-string re-form file pos path)))
               (when (stringp re)
                 (trawl--check-re-string 
                  re (format "%s (%s)" name rule-name) file pos path)))))
-        (trawl--get-list form)))
+        (trawl--get-list form file pos path)))
 
 (defun trawl--check-form-recursively (form file pos path)
   (pcase form
