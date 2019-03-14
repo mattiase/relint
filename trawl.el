@@ -152,43 +152,62 @@
 ;; The names map to a list of the regexp argument indices.
 (defvar trawl--regexp-functions)
 
-;; Whether form is a safe expression to evaluate.
-(defun trawl--safe-expr (form)
+;; Transform FORM into an expression that is safe to evaluate with the
+;; bindings in trawl--variables and parameters in PARAMS.
+;; Return the transformed expression with known variables substituted away,
+;; or 'no-value if safe evaluation could not be guaranteed.
+(defun trawl--safe-expr (form params)
   (cond
    ((symbolp form)
-    (or (memq form '(t nil))
-        (assq form trawl--variables)))
-   ((consp form)
-    (or (eq (car form) 'quote)
-        (and (trawl--safe-function (car form))
-             (not (memq nil (mapcar #'trawl--safe-expr (cdr form)))))))
-   (t t)))                              ; Other atoms assumed OK.
+    (if (or (memq form '(t nil))
+            (memq form params))
+        form
+      (let ((binding (assq form trawl--variables)))
+        (if binding
+            (list 'quote (trawl--eval (cdr binding)))
+          'no-value))))
+   ((atom form) form)                   ; Other atoms considered OK.
+   ((eq (car form) 'quote) form)
+   (t
+    (let* ((fun (trawl--safe-function (car form) params))
+           (args (mapcar (lambda (x) (trawl--safe-expr x params))
+                         (cdr form))))
+      (if (and fun (not (memq 'no-value args)))
+          (cons fun args)
+        'no-value)))))
 
-;; Whether f is safe to pass as a higher-order function in a call.
-(defun trawl--safe-function (f)
-  (when (and (consp f) (memq (car f) '(quote function)))
-    (setq f (cadr f)))
+;; Transform F into a function that is safe to pass as a higher-order function
+;; in a call. Return the transformed function or nil if safe evaluation
+;; could not be guaranteed.
+;; PARAMS is a list of parameters that can be assumed to be in scope.
+(defun trawl--safe-function (f params)
   (cond
    ;; Functions (and some special forms/macros) considered safe.
    ((symbolp f)
-    (or (get f 'side-effect-free)
-        (memq f '(caar cadr cdar cddr purecopy remove remq
-                  if unless when and or
-                  regexp-opt regexp-opt-charset))))
+    (and (or (and (get f 'side-effect-free)
+                  (not (eq f 'symbol-value)))
+             (memq f '(caar cadr cdar cddr purecopy remove remq
+                       if unless when and or
+                       regexp-opt regexp-opt-charset)))
+         f))
+   ((atom f) nil)
+   ((eq (car f) 'function)
+    (trawl--safe-function (cadr f) params))
 
    ;; Only permit one-argument one-expression lambdas (for purity),
    ;; where the body only refers to arguments and known variables,
    ;; and calls safe functions.
-   ((and (consp f) (eq (car f) 'lambda))
+   ((eq (car f) 'lambda)
     (let ((vars (cadr f))
           (body (cddr f)))
       (and (= (length vars) 1)
            (= (length body) 1)
-           (let ((trawl--variables
-                  (cons (cons (car vars) nil) trawl--variables)))
-             (trawl--safe-expr (car body))))))))
+           (let ((expr (trawl--safe-expr (car body) (cons (car vars) params))))
+             (and (not (eq expr 'no-value))
+                  `(lambda (,(car vars)) ,expr))))))))
 
 ;; Whether an `rx' form is safe to translate.
+;; Will mutate (eval ...) subforms with their results when possible.
 (defun trawl--rx-safe (form)
   (cond
    ((atom form) t)
@@ -226,6 +245,11 @@
     (trawl--add-to-error-buffer (format "eval error: %S" form))
     'no-value)
    ((eq (car form) 'quote)
+    (if (and (consp (cadr form))
+             (eq (caadr form) '\,))     ; In case we are inside a backquote.
+        'no-value
+      (cadr form)))
+   ((eq (car form) 'function)
     (cadr form))
    ((eq (car form) 'eval-when-compile)
     (trawl--eval (car (last form))))
@@ -233,7 +257,11 @@
     form)
 
    ;; Reasonably pure functions: only call if all args can be fully evaluated.
-   ((or (get (car form) 'side-effect-free)
+   ((or (and (get (car form) 'side-effect-free)
+             ;; Exceptions: there should probably be more.
+             ;; Maybe we should just list the ones we believe are safe,
+             ;; and not use side-effect-free?
+             (not (eq (car form) 'symbol-value)))
         ;; Common functions that aren't marked as side-effect-free.
         (memq (car form) '(caar cadr cdar cddr
                            regexp-opt regexp-opt-charset
@@ -277,47 +305,54 @@
 
    ;; apply: Call only if the function is safe and all args evaluated.
    ((eq (car form) 'apply)
-    (let ((fun (cadr form)))
-      (if (trawl--safe-function fun)
-          (let ((args (mapcar #'trawl--eval (cddr form))))
-            (if (memq 'no-value args)
-                'no-value
-              (condition-case nil
-                  (apply fun args)
-                (error 'no-value))))
-;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
-;                                            (car form) fun))
-        'no-value)))
+    (let ((args (mapcar #'trawl--eval (cdr form))))
+      (if (memq 'no-value args)
+          'no-value
+        (let ((fun (trawl--safe-function (car args) nil)))
+          (if fun
+              (condition-case err
+                  (apply #'apply (cons fun (cdr args)))
+                (error (signal 'trawl--eval-error (format "eval error: %S: %s"
+                                                          form err))))
+            'no-value)))))
 
    ;; funcall: Call only if the function is safe and all args evaluated.
    ((eq (car form) 'funcall)
     (let ((args (mapcar #'trawl--eval (cdr form))))
-      (if (and (not (memq 'no-value args))
-               (trawl--safe-function (car args)))
-          (condition-case nil
-              (apply (car args) (cdr args))
-            (error 'no-value))
-;        (trawl--add-to-error-buffer (format "unsafe funcall: %S -> %S\n"
-;                                            form args))
+      (if (memq 'no-value args)
+          'no-value
+        (let ((fun (trawl--safe-function (car args) nil)))
+          (if fun
+              (condition-case err
+                  (apply fun (cdr args))
+                (error (signal 'trawl--eval-error (format "eval error: %S: %s"
+                                                          form err))))
+            'no-value)))))
+
+   ;; mapcar, mapcan: Call only if the function is safe.
+   ;; The sequence argument may be missing a few arguments that we cannot
+   ;; evaluate.
+   ((memq (car form) '(mapcar mapcan))
+    (let ((fun (trawl--safe-function (trawl--eval (cadr form)) nil))
+          (seq (delq nil (trawl--eval-list (caddr form)))))
+      (if fun
+          (condition-case err
+              (funcall (car form) fun seq)
+            (error (signal 'trawl--eval-error (format "eval error: %S: %s"
+                                                      form err))))
         'no-value)))
 
-   ;; map*: Call only if the function is safe and all args evaluated.
-   ((memq (car form) '(mapcar mapconcat mapcan))
-    (let ((fun (cadr form)))
-      (if (trawl--safe-function fun)
-          (let ((args
-                 ;; Use trawl--eval-list when we believe that missing
-                 ;; elements may be acceptable.
-                 (if (eq (car form) 'mapconcat)
-                     (mapcar #'trawl--eval (cddr form))
-                   (delq nil (mapcar #'trawl--eval-list (cddr form))))))
-            (if (memq 'no-value args)
-                'no-value
-              (condition-case nil
-                  (apply (car form) fun args)
-                (error 'no-value))))
-;        (trawl--add-to-error-buffer (format "%s unsafe hof: %S\n"
-;                                            (car form) fun))
+   ;; mapconcat: Call only if the function is safe and all arguments evaluated.
+   ((eq (car form) 'mapconcat)
+    (let ((fun (trawl--safe-function (trawl--eval (cadr form)) nil))
+          (args (mapcar #'trawl--eval (cddr form))))
+      (if fun
+          (if (memq 'no-value args)
+              'no-value
+            (condition-case err
+                (apply (car form) fun args)
+              (error (signal 'trawl--eval-error (format "eval error: %S: %s"
+                                                        form err)))))
         'no-value)))
           
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
@@ -375,7 +410,7 @@
    ((memq (car form) '(cond)) 'no-value)
 
    (t
-;    (trawl--add-to-error-buffer (format "eval rule missing: %S\n" form))
+    ;;(trawl--add-to-error-buffer (format "eval rule missing: %S\n" form))
     'no-value)))
 
 ;; Evaluate a form as far as possible, attempting to keep its list structure
