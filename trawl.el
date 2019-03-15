@@ -152,6 +152,39 @@
 ;; The names map to a list of the regexp argument indices.
 (defvar trawl--regexp-functions)
 
+;; Functions that are safe to call during evaluation.
+;; With some exceptions (noted), these are pure.
+;; More functions could be added if there is evidence that it would
+;; help in evaluating more regexp strings.
+(defconst trawl--safe-functions
+  '(cons list append
+    concat
+    car cdr caar cadr cdar cddr car-safe cdr-safe nth nthcdr
+    format format-message
+    regexp-quote regexp-opt regexp-opt-charset
+    reverse
+    member memq remove remq
+    assoc assq rassoc rassq
+    identity
+    string make-string make-list
+    substring
+    length safe-length
+    symbol-name
+    null not
+    eq eql equal
+    string-equal string= string< string-lessp char-equal string-match-p
+    string-match                        ; Alters the match state.
+    vector aref elt vconcat
+    char-to-string string-to-char
+    number-to-string string-to-number int-to-string
+    upcase downcase capitalize
+    purecopy copy-sequence copy-alist
+    plist-get plist-member
+    consp atom stringp symbolp listp nlisp
+    integerp numberp natnump fixnump bignump characterp
+    sequencep vectorp arrayp
+    + - * / % mod 1+ 1- max min < <= = > >= /= abs))
+
 ;; Transform FORM into an expression that is safe to evaluate with the
 ;; bindings in trawl--variables and parameters in PARAMS.
 ;; Return the transformed expression with known variables substituted away,
@@ -184,11 +217,8 @@
   (cond
    ;; Functions (and some special forms/macros) considered safe.
    ((symbolp f)
-    (and (or (and (get f 'side-effect-free)
-                  (not (eq f 'symbol-value)))
-             (memq f '(caar cadr cdar cddr purecopy remove remq
-                       if unless when and or
-                       regexp-opt regexp-opt-charset)))
+    (and (or (memq f trawl--safe-functions)
+             (memq f '(if when unless and or)))
          f))
    ((atom f) nil)
    ((eq (car f) 'function)
@@ -257,20 +287,7 @@
     form)
 
    ;; Reasonably pure functions: only call if all args can be fully evaluated.
-   ((or (and (get (car form) 'side-effect-free)
-             ;; Exceptions: there should probably be more.
-             ;; Maybe we should just list the ones we believe are safe,
-             ;; and not use side-effect-free?
-             (not (eq (car form) 'symbol-value)))
-        ;; Common functions that aren't marked as side-effect-free.
-        (memq (car form) '(caar cadr cdar cddr
-                           regexp-opt regexp-opt-charset
-                           ;; alters last-coding-system-used
-                           decode-coding-string
-                           format-message format-spec
-                           purecopy remove remq
-                           ;; alters match state
-                           string-match string-match-p)))
+   ((memq (car form) trawl--safe-functions)
     (let ((args (mapcar #'trawl--eval (cdr form))))
       (if (memq 'no-value args)
           'no-value
