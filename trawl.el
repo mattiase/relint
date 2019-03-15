@@ -532,7 +532,43 @@
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (trawl--get-list form file pos path)))
 
-(defun trawl--check-form-recursively (form file pos path)
+(defun trawl--check-form-recursively-1 (form file pos path)
+  (pcase form
+    (`(,(or `defun `defmacro `defsubst)
+       ,name ,args . ,_)
+     ;; If any argument looks like a regexp, remember it so that it can be
+     ;; checked in calls.
+     (when (consp args)
+       (let ((indices nil)
+             (index 0))
+         (while args
+           (let ((arg (car args)))
+             (when (symbolp arg)
+               (cond
+                ((eq arg '&optional))   ; Treat optional args as regular.
+                ((eq arg '&rest)
+                 (setq args nil))       ; Ignore &rest args.
+                (t
+                 (when (string-match-p (rx (or (or "regexp" "regex" "-re"
+                                                   "pattern")
+                                               (seq bos "re"))
+                                           eos)
+                        (symbol-name arg))
+                   (push index indices))
+                 (setq index (1+ index)))))
+             (setq args (cdr args))))
+         (when indices
+           (push (cons name (reverse indices)) trawl--regexp-functions)))))
+    (_
+     (let ((index 0))
+       (while (consp form)
+         (when (consp (car form))
+           (trawl--check-form-recursively-1
+            (car form) file pos (cons index path)))
+         (setq form (cdr form))
+         (setq index (1+ index)))))))
+
+(defun trawl--check-form-recursively-2 (form file pos path)
   (pcase form
     (`(,(or `looking-at `re-search-forward `re-search-backward
             `string-match `string-match-p `looking-back `looking-at-p
@@ -613,30 +649,6 @@
        (trawl--check-font-lock-keywords font-lock-list origin
                                         file pos (cons 4 path))
        (trawl--check-list auto-mode-list origin file pos (cons 5 path))))
-    (`(,(or `defun `defmacro `defsubst)
-       ,name ,args . ,_)
-     ;; If any argument looks like a regexp, remember it so that it can be
-     ;; checked in calls.
-     (when (consp args)
-       (let ((indices nil)
-             (index 0))
-         (while args
-           (let ((arg (car args)))
-             (when (symbolp arg)
-               (cond
-                ((eq arg '&optional))
-                ((eq arg '&rest)
-                 (setq args nil))
-                (t
-                 (when (or (string-suffix-p "regexp" (symbol-name arg))
-                           (string-suffix-p "regex" (symbol-name arg))
-                           (eq arg 're)
-                           (string-suffix-p "-re" (symbol-name arg)))
-                   (push index indices))
-                 (setq index (1+ index)))))
-             (setq args (cdr args))))
-         (when indices
-           (push (cons name (reverse indices)) trawl--regexp-functions)))))
     )
 
   ;; Check calls to remembered functions with regexp arguments.
@@ -658,55 +670,61 @@
   (let ((index 0))
     (while (consp form)
       (when (consp (car form))
-        (trawl--check-form-recursively (car form) file pos (cons index path)))
+        (trawl--check-form-recursively-2 (car form) file pos (cons index path)))
       (setq form (cdr form))
       (setq index (1+ index)))))
 
-(defun trawl--check-toplevel-form (form file pos)
-  (when (consp form)
-    (trawl--check-form-recursively form file pos nil)))
-                      
 (defun trawl--show-errors ()
   (unless noninteractive
     (let ((pop-up-windows t))
       (display-buffer (trawl--error-buffer))
       (sit-for 0))))
 
+(defun trawl--check-buffer (file forms function)
+  (dolist (form forms)
+    (funcall function (car form) file (cdr form) nil)))
+
+;; Read top-level forms from the current buffer.
+;; Return a list of (FORM . STARTING-POSITION).
+(defun trawl--read-buffer (file)
+  (goto-char (point-min))
+  (let ((pos nil)
+        (keep-going t)
+        (read-circle nil)
+        (forms nil))
+    (while keep-going
+      (setq pos (point))
+      (let ((form nil))
+        (condition-case err
+            (setq form (read (current-buffer)))
+          (end-of-file
+           (setq keep-going nil))
+          (invalid-read-syntax
+           (cond
+            ((equal (cadr err) "#")
+             (goto-char pos)
+             (forward-sexp 1))
+            (t
+             (trawl--report file (point) nil (prin1-to-string err))
+             (setq keep-going nil))))
+          (error
+           (trawl--report file (point) nil (prin1-to-string err))
+           (setq keep-going nil)))
+        (when (consp form)
+          (push (cons form pos) forms))))
+    (nreverse forms)))
+
 (defun trawl--single-file (file)
   (let ((errors-before trawl--error-count))
     (with-temp-buffer
       (emacs-lisp-mode)
       (insert-file-contents file)
-      (goto-char (point-min))
-      (let ((pos nil)
-            (keep-going t)
-            (read-circle nil)
+      (let ((forms (trawl--read-buffer file))
             (trawl--variables nil)
             (trawl--checked-variables nil)
             (trawl--regexp-functions nil))
-        (while keep-going
-          (setq pos (point))
-          ;;(trawl--report file (point) nil "reading")
-          (let ((form nil))
-            (condition-case err
-                (setq form (read (current-buffer)))
-              (end-of-file
-               (setq keep-going nil))
-              (invalid-read-syntax
-               (cond
-                ((equal (cadr err) "#")
-                 (goto-char pos)
-                 (forward-sexp 1))
-                (t
-                 (trawl--report file (point) nil
-                                (prin1-to-string err))
-                 (setq keep-going nil))))
-              (error
-               (trawl--report file (point) nil
-                              (prin1-to-string err))
-               (setq keep-going nil)))
-            (when form
-              (trawl--check-toplevel-form form file pos))))))
+        (trawl--check-buffer file forms #'trawl--check-form-recursively-1)
+        (trawl--check-buffer file forms #'trawl--check-form-recursively-2)))
     (when (> trawl--error-count errors-before)
       (trawl--show-errors))))
         
