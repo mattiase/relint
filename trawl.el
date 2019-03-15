@@ -163,7 +163,7 @@
     format format-message
     regexp-quote regexp-opt regexp-opt-charset
     reverse
-    member memq remove remq
+    member memq remove remq member-ignore-case
     assoc assq rassoc rassq
     identity
     string make-string make-list
@@ -184,6 +184,15 @@
     integerp numberp natnump fixnump bignump characterp
     sequencep vectorp arrayp
     + - * / % mod 1+ 1- max min < <= = > >= /= abs))
+
+;; Alist mapping non-safe functions to semantically equivalent safe
+;; alternatives.
+(defconst trawl--safe-alternatives
+  '((nconc . append)
+    (delete . remove)
+    (delq . remq)
+    (nreverse . reverse)
+    (nbutlast . butlast)))
 
 ;; Transform FORM into an expression that is safe to evaluate with the
 ;; bindings in trawl--variables and parameters in PARAMS.
@@ -217,9 +226,10 @@
   (cond
    ;; Functions (and some special forms/macros) considered safe.
    ((symbolp f)
-    (and (or (memq f trawl--safe-functions)
-             (memq f '(if when unless and or)))
-         f))
+    (cond ((or (memq f trawl--safe-functions)
+               (memq f '(if when unless and or)))
+           f)
+          ((cdr (assq f trawl--safe-alternatives)))))
    ((atom f) nil)
    ((eq (car f) 'function)
     (trawl--safe-function (cadr f) params))
@@ -263,6 +273,7 @@
 ;; become `no-value'.
 (defun trawl--eval (form)
   (cond
+   ((memq form '(nil t)) form)
    ((symbolp form)
     (and form
          (let ((binding (assq form trawl--variables)))
@@ -317,6 +328,17 @@
         (eval (cons (car form)
                     (mapcar (lambda (x) (list 'quote x)) args))))))
 
+   ((assq (car form) trawl--safe-alternatives)
+    (trawl--eval (cons (cdr (assq (car form) trawl--safe-alternatives))
+                       (cdr form))))
+
+   ;; delete-dups: Work on a copy of the argument.
+   ((eq (car form) 'delete-dups)
+    (let ((arg (trawl--eval (cadr form))))
+      (if (eq arg 'no-value)
+          'no-value
+        (delete-dups (copy-sequence arg)))))
+
    ((memq (car form) '(\` backquote-list*))
     (trawl--eval (macroexpand form)))
 
@@ -351,7 +373,7 @@
    ;; evaluate.
    ((memq (car form) '(mapcar mapcan))
     (let ((fun (trawl--safe-function (trawl--eval (cadr form)) nil))
-          (seq (delq nil (trawl--eval-list (caddr form)))))
+          (seq (remq nil (trawl--eval-list (caddr form)))))
       (if fun
           (condition-case err
               (funcall (car form) fun seq)
@@ -450,10 +472,20 @@
    ;; Pure structure-generating functions: Apply even if we cannot evaluate
    ;; all arguments (they will be nil), because we want a reasonable
    ;; approximation of the structure.
-   ((memq (car form) '(list append cons))
+   ((memq (car form) '(list append cons reverse remove remq))
     (apply (car form) (mapcar #'trawl--eval-list (cdr form))))
 
-   ((eq (car form) 'purecopy)
+   ((assq (car form) trawl--safe-alternatives)
+    (trawl--eval-list (cons (cdr (assq (car form) trawl--safe-alternatives))
+                            (cdr form))))
+
+   ((eq (car form) 'delete-dups)
+    (let ((arg (trawl--eval (cadr form))))
+      (if (eq arg 'no-value)
+          'no-value
+        (delete-dups (copy-sequence arg)))))
+
+   ((memq (car form) '(purecopy copy-sequence copy-alist))
     (trawl--eval-list (cadr form)))
 
    ((memq (car form) '(\` backquote-list*))
