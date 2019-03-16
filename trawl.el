@@ -626,13 +626,21 @@
        (trawl--check-re re-arg (format "call to %s" (car form))
                         file pos (cons 1 path))))
     (`(,(or `split-string `split-string-and-unquote
-            `string-trim-left `string-trim-right
+            `string-trim-left `string-trim-right `string-trim
             `directory-files-recursively)
        ,_ ,re-arg . ,rest)
      (unless (and (symbolp re-arg)
                   (memq re-arg trawl--checked-variables))
        (trawl--check-re re-arg (format "call to %s" (car form))
                         file pos (cons 2 path)))
+     ;; string-trim has another regexp argument (trim, arg 3)
+     (when (and (eq (car form) 'string-trim)
+                (car rest))
+       (let ((right (car rest)))
+         (unless (and (symbolp right)
+                      (memq right trawl--checked-variables))
+           (trawl--check-re right (format "call to %s" (car form))
+                            file pos (cons 3 path)))))
      ;; split-string has another regexp argument (trim, arg 4)
      (when (and (eq (car form) 'split-string)
                 (cadr rest))
