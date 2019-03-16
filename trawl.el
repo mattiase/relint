@@ -173,15 +173,24 @@
     null not
     eq eql equal
     string-equal string= string< string-lessp char-equal string-match-p
-    string-match                        ; Alters the match state.
+
+    ; These alter the match state.
+    string-match split-string replace-regexp-in-string
+
+    combine-and-quote-strings split-string-and-unquote
+    string-join string-trim-left string-trim-right string-trim
+    string-prefix-p string-suffix-p
+    string-blank-p string-remove-prefix string-remove-suffix
     vector aref elt vconcat
     char-to-string string-to-char
     number-to-string string-to-number int-to-string
     upcase downcase capitalize
-    purecopy copy-sequence copy-alist
+    purecopy copy-sequence copy-alist copy-tree
+    assoc-default member-ignore-case alist-get
+    last butlast number-sequence
     plist-get plist-member
-    consp atom stringp symbolp listp nlisp
-    integerp numberp natnump fixnump bignump characterp
+    consp atom stringp symbolp listp nlistp
+    integerp numberp natnump fixnump bignump characterp zerop
     sequencep vectorp arrayp
     + - * / % mod 1+ 1- max min < <= = > >= /= abs))
 
