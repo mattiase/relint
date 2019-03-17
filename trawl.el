@@ -2,7 +2,7 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.2
-;; Package-Requires: ((xr "1.4"))
+;; Package-Requires: ((xr "1.7"))
 ;; Keywords: lisp, maint, regexps
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -124,15 +124,31 @@
             2)))                        ; Lop off quotes
     (concat (make-string quoted-pos ?.) "^")))
 
+(defun trawl--check-skip-set (skip-set-string name file pos path)
+  (let ((complaints
+         (condition-case err
+             (mapcar (lambda (warning)
+                       (let ((ofs (car warning)))
+                         (format "In %s: %s (pos %d)\n  %s\n   %s"
+                                 name (cdr warning) ofs
+                                 (trawl--quote-string skip-set-string)
+                                 (trawl--caret-string skip-set-string ofs))))
+                     (xr-skip-set-lint skip-set-string))
+           (error (list (format "In %s: Error: %s: %s"
+                                name  (cadr err)
+                                (trawl--quote-string skip-set-string)))))))
+    (mapc (lambda (msg) (trawl--report file pos path msg))
+          complaints)))
+
 (defun trawl--check-re-string (re name file pos path)
   (let ((complaints
          (condition-case err
              (mapcar (lambda (warning)
-                       (let ((pos (car warning)))
+                       (let ((ofs (car warning)))
                          (format "In %s: %s (pos %d)\n  %s\n   %s"
-                                 name (cdr warning) pos
+                                 name (cdr warning) ofs
                                  (trawl--quote-string re)
-                                 (trawl--caret-string re pos))))
+                                 (trawl--caret-string re ofs))))
                      (xr-lint re))
            (error (list (format "In %s: Error: %s: %s"
                                 name  (cadr err)
@@ -649,6 +665,12 @@
                       (memq trim trawl--checked-variables))
            (trawl--check-re trim (format "call to %s" (car form))
                             file pos (cons 4 path))))))
+    (`(,(or `skip-chars-forward `skip-chars-backward)
+       ,skip-arg . ,_)
+     (let ((str (trawl--get-string skip-arg file pos path)))
+       (when str
+         (trawl--check-skip-set str (format "call to %s" (car form))
+                                file pos (cons 1 path)))))
     (`(,(or `defvar `defconst `defcustom)
        ,name ,re-arg . ,rest)
      (when (symbolp name)
