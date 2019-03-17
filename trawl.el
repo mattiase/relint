@@ -1,7 +1,7 @@
 ;;; trawl.el --- Scan elisp files for regexp errors -*- lexical-binding: t -*-
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.2
+;; Version: 1.3
 ;; Package-Requires: ((xr "1.7"))
 ;; Keywords: lisp, maint, regexps
 
