@@ -1,7 +1,7 @@
 ;;; relint.el --- Scan elisp files for regexp errors -*- lexical-binding: t -*-
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.3
+;; Version: 1.4
 ;; Package-Requires: ((xr "1.7"))
 ;; Keywords: lisp, maint, regexps
 
@@ -20,23 +20,25 @@
 
 ;;; Commentary:
 
-;; Scan one or more elisp files for potential regexp strings and
-;; reports potential errors in them, using `xr-lint' from the `xr'
-;; package.
+;; Scan elisp files for regexp strings and reports potential errors,
+;; including deprecated syntax and bad practice.
+;; Also check the regexp-like-but-not-quite skip-set arguments to
+;; `skip-chars-forward' and `skip-chars-backward'.
 ;;
-;; To use:  M-x relint-file       (check a single elisp file)
-;;      or  M-x relint-directory  (check all .el files in a directory tree)
+;; How to use:
 ;;
-;; It can also be used from batch mode by calling `relint-batch' with
-;; files and/or directories as command-line arguments, errors going
-;; to stderr:
+;; * Inside Emacs:
 ;;
-;;  emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
+;;   M-x relint-file       (check a single elisp file)
+;;   M-x relint-directory  (check all .el files in a directory tree)
+;;
+;; * From batch mode:
+;;
+;;   emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
 ;;
 ;; Since there is no sure way to know whether a particular string is a
 ;; regexp, the code has to guess a lot, and will likely miss quite a
-;; few. It looks at calls to known functions with regexp arguments,
-;; and at variables with regexp-sounding names.
+;; few. It tries to minimise the amount of false positives.
 ;;
 ;; In other words, it is a nothing but a hack.
 
