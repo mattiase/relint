@@ -1,4 +1,4 @@
-;;; relint.el --- Scan elisp files for regexp errors -*- lexical-binding: t -*-
+;;; relint.el --- Elisp regexp mistake finder   -*- lexical-binding: t -*-
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.4
@@ -46,7 +46,7 @@
 
 (require 'xr)
 
-(defconst relint--error-buffer-name "*relint-catch*")
+(defconst relint--error-buffer-name "*relint*")
 
 (defun relint--error-buffer ()
   (let ((buf (get-buffer relint--error-buffer-name)))
@@ -310,7 +310,7 @@
    ((atom form)
     form)
    ((not (symbolp (car form)))
-    (relint--add-to-error-buffer (format "eval error: %S" form))
+    (relint--add-to-error-buffer (format "eval error: %S\n" form))
     'no-value)
    ((eq (car form) 'quote)
     (if (and (consp (cadr form))
@@ -743,7 +743,8 @@
   (let ((index 0))
     (while (consp form)
       (when (consp (car form))
-        (relint--check-form-recursively-2 (car form) file pos (cons index path)))
+        (relint--check-form-recursively-2
+         (car form) file pos (cons index path)))
       (setq form (cdr form))
       (setq index (1+ index)))))
 
@@ -793,6 +794,7 @@
       (emacs-lisp-mode)
       (insert-file-contents file)
       (let ((forms (relint--read-buffer file))
+            (case-fold-search nil)
             (relint--variables nil)
             (relint--checked-variables nil)
             (relint--regexp-functions nil))
@@ -846,7 +848,7 @@ Call this function in batch mode with files and directories as
 command-line arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan."
   (unless noninteractive
-    (error "`relint-batch' is to be used only with -batch"))
+    (error "`relint-batch' is only for use with -batch"))
   (setq relint--error-count 0)
   (while command-line-args-left
     (let ((arg (pop command-line-args-left)))
