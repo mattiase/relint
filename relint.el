@@ -399,8 +399,11 @@
    ;; The sequence argument may be missing a few arguments that we cannot
    ;; evaluate.
    ((memq (car form) '(mapcar mapcan))
-    (let ((fun (relint--safe-function (relint--eval (cadr form)) nil))
-          (seq (remq nil (relint--eval-list (caddr form)))))
+    (let* ((fun (relint--safe-function (relint--eval (cadr form)) nil))
+           (arg (relint--eval-list (caddr form)))
+           (seq (if (listp arg)
+                    (delq nil arg)
+                  arg)))
       (if fun
           (condition-case err
               (funcall (car form) fun seq)
