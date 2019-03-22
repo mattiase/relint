@@ -171,7 +171,7 @@
 (defvar relint--regexp-functions)
 
 ;; Functions that are safe to call during evaluation.
-;; With some exceptions (noted), these are pure.
+;; Except for altering the match state, these are pure.
 ;; More functions could be added if there is evidence that it would
 ;; help in evaluating more regexp strings.
 (defconst relint--safe-functions
@@ -191,10 +191,8 @@
     null not
     eq eql equal
     string-equal string= string< string-lessp char-equal string-match-p
-
-    ; These alter the match state.
     string-match split-string replace-regexp-in-string
-
+    wildcard-to-regexp
     combine-and-quote-strings split-string-and-unquote
     string-join string-trim-left string-trim-right string-trim
     string-prefix-p string-suffix-p
