@@ -344,15 +344,52 @@
             (error 'no-value))
         'no-value)))
 
-   ;; if, when, unless, and, or: Treat these as functions and eval all args.
-   ((memq (car form) '(if when unless and or))
-    (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
+   ;; if: evaluate condition and the right branch.
+   ((eq (car form) 'if)
+    (let ((condition (relint--eval (cadr form))))
+      (if (eq condition 'no-value)
           'no-value
-        ;; eval is safe here: all args are quoted constants.
-        (eval (cons (car form)
-                    (mapcar (lambda (x) (list 'quote x)) args))))))
+        (let ((then-part (nth 2 form))
+              (else-tail (nthcdr 3 form)))
+          (cond (condition
+                 (relint--eval then-part))
+                ((and else-tail (cdr else-tail))
+                 'no-value)             ; Ignore multi-value else bodies.
+                (else-tail
+                 (relint--eval (car else-tail))))))))
 
+   ;; when, unless: evaluate condition and maybe consequent.
+   ((memq (car form) '(when unless))
+    (let ((condition (relint--eval (cadr form)))
+          (body (cddr form)))
+      (cond ((or (eq condition 'no-value)
+                 (not (= (length body) 1)))
+             'no-value)
+            ((eq (not condition) (eq (car form) 'unless))
+             (relint--eval (car body))))))
+
+   ;; and: keep evaluating until false or empty.
+   ((eq (car form) 'and)
+    (if (cdr form)
+        (let ((val (relint--eval (cadr form))))
+          (if (eq val 'no-value)
+              'no-value
+            (if (and val (cddr form))
+                (relint--eval (cons 'and (cddr form)))
+              val)))
+      t))
+
+   ;; and: keep evaluating until true or empty.
+   ((eq (car form) 'or)
+    (if (cdr form)
+        (let ((val (relint--eval (cadr form))))
+          (if (eq val 'no-value)
+              'no-value
+            (if (and (not val) (cddr form))
+                (relint--eval (cons 'or (cddr form)))
+              val)))
+      nil))
+   
    ((assq (car form) relint--safe-alternatives)
     (relint--eval (cons (cdr (assq (car form) relint--safe-alternatives))
                         (cdr form))))
