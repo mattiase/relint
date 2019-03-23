@@ -170,6 +170,11 @@
 ;; The names map to a list of the regexp argument indices.
 (defvar relint--regexp-functions)
 
+;; List of possibly safe functions defined in the current file, each
+;; element on the form (FUNCTION ARGS BODY), where ARGS is the lambda list
+;; and BODY its single body expression.
+(defvar relint--function-defs)
+
 ;; Functions that are safe to call during evaluation.
 ;; Except for altering the match state, these are pure.
 ;; More functions could be added if there is evidence that it would
@@ -294,6 +299,25 @@
         (error (signal 'relint--eval-error (format "rx error: %s" (cadr err)))))
     'no-value))
 
+;; Bind FORMALS to ACTUALS and evaluate EXPR.
+(defun relint--apply (formals actuals expr)
+  (let ((bindings nil))
+    (while formals
+      (cond
+       ((eq (car formals) '&rest)
+        (push (cons (cadr formals) (list 'quote actuals)) bindings)
+        (setq formals nil))
+       ((eq (car formals) '&optional)
+        (setq formals (cdr formals)))
+       (t
+        (push (cons (car formals) (list 'quote (car actuals))) bindings)
+        (setq formals (cdr formals))
+        (setq actuals (cdr actuals)))))
+    ;; This results in dynamic binding, but that doesn't matter for our
+    ;; purposes.
+    (let ((relint--variables (append bindings relint--variables)))
+      (relint--eval expr))))
+
 ;; Evaluate a form as far as possible. Substructures that cannot be evaluated
 ;; become `no-value'.
 (defun relint--eval (form)
@@ -333,6 +357,16 @@
         (condition-case nil
             (apply (car form) args)
           (error 'no-value)))))
+
+   ;; Locally defined functions: try evaluating.
+   ((assq (car form) relint--function-defs)
+    (let ((args (mapcar #'relint--eval (cdr form))))
+      (if (memq 'no-value args)
+          'no-value
+        (let* ((fn (cdr (assq (car form) relint--function-defs)))
+               (formals (car fn))
+               (expr (cadr fn)))
+          (relint--apply formals args expr)))))
 
    ;; replace-regexp-in-string: Only safe if no function given.
    ((eq (car form) 'replace-regexp-in-string)
@@ -632,7 +666,14 @@
 (defun relint--check-form-recursively-1 (form file pos path)
   (pcase form
     (`(,(or `defun `defmacro `defsubst)
-       ,name ,args . ,_)
+       ,name ,args . ,body)
+     ;; Save the function for possible use.
+     (unless (eq (car form) 'defmacro)
+       (when (stringp (car body))
+         (setq body (cdr body)))          ; Skip doc string.
+       ;; Only consider functions with single-expression bodies.
+       (when (= (length body) 1)
+         (push (list name args (car body)) relint--function-defs)))
      ;; If any argument looks like a regexp, remember it so that it can be
      ;; checked in calls.
      (when (consp args)
@@ -835,7 +876,9 @@
             (case-fold-search nil)
             (relint--variables nil)
             (relint--checked-variables nil)
-            (relint--regexp-functions nil))
+            (relint--regexp-functions nil)
+            (relint--function-defs nil)
+            )
         (relint--check-buffer file forms #'relint--check-form-recursively-1)
         (relint--check-buffer file forms #'relint--check-form-recursively-2)))
     (when (> relint--error-count errors-before)
