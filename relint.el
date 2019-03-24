@@ -195,7 +195,8 @@
     symbol-name
     null not
     eq eql equal
-    string-equal string= string< string-lessp char-equal string-match-p
+    string-equal string= string< string-lessp string> string-greaterp
+    char-equal string-match-p
     string-match split-string replace-regexp-in-string
     wildcard-to-regexp
     combine-and-quote-strings split-string-and-unquote
@@ -206,12 +207,13 @@
     vector aref elt vconcat
     char-to-string string-to-char
     number-to-string string-to-number int-to-string
+    string-to-list string-to-vector string-or-null-p
     upcase downcase capitalize
     purecopy copy-sequence copy-alist copy-tree
     assoc-default member-ignore-case alist-get
     last butlast number-sequence
     plist-get plist-member
-    consp atom stringp symbolp listp nlistp
+    consp atom stringp symbolp listp nlistp booleanp
     integerp numberp natnump fixnump bignump characterp zerop
     sequencep vectorp arrayp
     + - * / % mod 1+ 1- max min < <= = > >= /= abs))
@@ -355,7 +357,6 @@
             (apply (car form) args)
           (error (throw 'relint-eval 'no-value))))))
 
-   ;; if: evaluate condition and the right branch.
    ((eq (car form) 'if)
     (let ((condition (relint--eval (cadr form))))
       (let ((then-part (nth 2 form))
@@ -363,11 +364,11 @@
         (cond (condition
                (relint--eval then-part))
               ((and else-tail (cdr else-tail))
-               (throw 'relint-eval 'no-value)) ; Ignore multi-value else bodies
+               ;; Ignore multi-expression else bodies
+               (throw 'relint-eval 'no-value))
               (else-tail
                (relint--eval (car else-tail)))))))
 
-   ;; and: keep evaluating until false or empty.
    ((eq (car form) 'and)
     (if (cdr form)
         (let ((val (relint--eval (cadr form))))
@@ -376,7 +377,6 @@
             val))
       t))
 
-   ;; or: keep evaluating until true or empty.
    ((eq (car form) 'or)
     (if (cdr form)
         (let ((val (relint--eval (cadr form))))
@@ -385,9 +385,23 @@
             val))
       nil))
    
-   ;; FIXME: cond
+   ((eq (car form) 'cond)
+    (and (cdr form)
+         (let ((clause (cadr form)))
+           (if (consp clause)
+               (let ((val (relint--eval (car clause))))
+                 (if val
+                     (if (cdr clause)
+                         (if (= (length (cdr clause)) 1)
+                             (relint--eval (cadr clause))
+                           ;; Ignore multi-expression clauses
+                           (throw 'relint-eval 'no-value))
+                       val)
+                   (relint--eval (cons 'cond (cddr form)))))
+             ;; Syntax error
+             (throw 'relint-eval 'no-value)))))
 
-   ((eq (car form) 'progn)
+   ((memq (car form) '(progn ignore-errors))
     (cond ((null (cdr form)) nil)
           ((null (cddr form)) (relint--eval (cadr form)))
           (t (throw 'relint-eval 'no-value))))
@@ -401,9 +415,9 @@
     (let ((arg (relint--eval (cadr form))))
       (delete-dups (copy-sequence arg))))
 
-   ;; FIXME: more macros: pcase, pcase-let...
-   ;; Maybe ones from cl?
-   ((memq (car form) '(when unless \` backquote-list*))
+   ;; FIXME: more macros. Maybe ones from cl?
+   ;; If they are useful but expand to impure code, we need to emulate them.
+   ((memq (car form) '(when unless \` backquote-list* pcase pcase-let))
     (relint--eval (macroexpand form)))
 
    ;; apply: Call only if the function is safe and all args evaluated.
@@ -431,7 +445,7 @@
     (let* ((fun (relint--wrap-function (relint--eval (cadr form))))
            (arg (relint--eval-list (caddr form)))
            (seq (if (listp arg)
-                    (delq nil arg)
+                    (remq nil arg)
                   arg)))
       (condition-case err
           (funcall (car form) fun seq)
@@ -447,7 +461,17 @@
         (error (signal 'relint--eval-error (format "eval error: %S: %s"
                                                    form err))))))
           
-   ;; FIXME: sort
+   ;; sort: accept missing items in a list argument.
+   ((eq (car form) 'sort)
+    (let* ((arg (relint--eval-list (cadr form)))
+           (seq (cond ((listp arg) (remq nil arg))
+                      ((sequencep arg) (copy-sequence arg))
+                      (arg)))
+           (pred (relint--wrap-function (relint--eval (caddr form)))))
+      (condition-case err
+          (sort seq pred)
+        (error (signal 'relint--eval-error (format "eval error: %S: %s"
+                                                   form err))))))
 
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
    ((eq (car form) 'rx)
@@ -463,8 +487,9 @@
 
    ;; let and let*: do not permit multi-expression bodies, since they
    ;; will contain necessary side-effects that we don't handle.
-   ((and (eq (car form) 'let)
-         (null (cdddr form)))
+   ((eq (car form) 'let)
+    (unless (= (length form) 3)
+      (throw 'relint-eval 'no-value))
     (let ((bindings
            (mapcar (lambda (binding)
                      (if (consp binding)
@@ -476,8 +501,9 @@
         (relint--eval (car (last form))))))
 
    ;; let*: bind a single variable and recurse.
-   ((and (eq (car form) 'let*)
-         (null (cdddr form)))
+   ((eq (car form) 'let*)
+    (unless (= (length form) 3)
+      (throw 'relint-eval 'no-value))
     (let ((bindings (cadr form)))
       (if bindings
           (let* ((binding (car bindings))
@@ -495,6 +521,14 @@
    ;; form. Just eval the arg and hope for the best.
    ((eq (car form) '\,)
     (relint--eval (cadr form)))
+
+   ;; featurep: only handle features that we are reasonably sure about,
+   ;; to avoid depending too much on the particular host Emacs.
+   ((eq (car form) 'featurep)
+    (let ((arg (relint--eval (cadr form))))
+      (cond ((eq arg 'xemacs) nil)
+            ((memq arg '(emacs mule)) t)
+            (t (throw 'relint-eval 'no-value)))))
 
    (t
     ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
