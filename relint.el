@@ -199,6 +199,7 @@
     string-match split-string replace-regexp-in-string
     wildcard-to-regexp
     combine-and-quote-strings split-string-and-unquote
+    string-to-multibyte string-as-multibyte string-to-unibyte string-as-unibyte
     string-join string-trim-left string-trim-right string-trim
     string-prefix-p string-suffix-p
     string-blank-p string-remove-prefix string-remove-suffix
@@ -224,60 +225,7 @@
     (nreverse . reverse)
     (nbutlast . butlast)))
 
-;; Transform FORM into an expression that is safe to evaluate with the
-;; bindings in relint--variables and parameters in PARAMS.
-;; Return the transformed expression with known variables substituted away,
-;; or 'no-value if safe evaluation could not be guaranteed.
-(defun relint--safe-expr (form params)
-  (cond
-   ((symbolp form)
-    (if (or (memq form '(t nil))
-            (memq form params))
-        form
-      (let ((binding (assq form relint--variables)))
-        (if binding
-            (list 'quote (relint--eval (cdr binding)))
-          'no-value))))
-   ((atom form) form)                   ; Other atoms considered OK.
-   ((eq (car form) 'quote) form)
-   (t
-    (let* ((fun (relint--safe-function (car form) params))
-           (args (mapcar (lambda (x) (relint--safe-expr x params))
-                         (cdr form))))
-      (if (and fun (not (memq 'no-value args)))
-          (cons fun args)
-        'no-value)))))
-
-;; Transform F into a function that is safe to pass as a higher-order function
-;; in a call. Return the transformed function or nil if safe evaluation
-;; could not be guaranteed.
-;; PARAMS is a list of parameters that can be assumed to be in scope.
-(defun relint--safe-function (f params)
-  (cond
-   ;; Functions (and some special forms/macros) considered safe.
-   ((symbolp f)
-    (cond ((or (memq f relint--safe-functions)
-               (memq f '(if when unless and or)))
-           f)
-          ((cdr (assq f relint--safe-alternatives)))))
-   ((atom f) nil)
-   ((eq (car f) 'function)
-    (relint--safe-function (cadr f) params))
-
-   ;; Only permit one-argument one-expression lambdas (for purity),
-   ;; where the body only refers to arguments and known variables,
-   ;; and calls safe functions.
-   ((eq (car f) 'lambda)
-    (let ((vars (cadr f))
-          (body (cddr f)))
-      (and (= (length vars) 1)
-           (= (length body) 1)
-           (let ((expr (relint--safe-expr (car body) (cons (car vars) params))))
-             (and (not (eq expr 'no-value))
-                  `(lambda (,(car vars)) ,expr))))))))
-
-;; Whether an `rx' form is safe to translate.
-;; Will mutate (eval ...) subforms with their results when possible.
+;; Make an `rx' form safe to translate, by mutating (eval ...) subforms.
 (defun relint--rx-safe (form)
   (cond
    ((atom form) t)
@@ -297,7 +245,7 @@
       (condition-case err
           (apply #'rx-to-string args)
         (error (signal 'relint--eval-error (format "rx error: %s" (cadr err)))))
-    'no-value))
+    (throw 'relint-eval 'no-value)))
 
 ;; Bind FORMALS to ACTUALS and evaluate EXPR.
 (defun relint--apply (formals actuals expr)
@@ -318,8 +266,38 @@
     (let ((relint--variables (append bindings relint--variables)))
       (relint--eval expr))))
 
-;; Evaluate a form as far as possible. Substructures that cannot be evaluated
-;; become `no-value'.
+;; A function that fails when called.
+(defun relint--no-value (&rest _)
+  (throw 'relint-eval 'no-value))
+
+;; Transform an evaluated function (typically a symbol or lambda expr)
+;; into something that can be called safely.
+(defun relint--wrap-function (form)
+  (cond
+   ((symbolp form)
+    (if (memq form relint--safe-functions)
+        form
+      (let ((alt (cdr (assq form relint--safe-alternatives))))
+        (if alt
+            alt
+          (let ((def (cdr (assq form relint--function-defs))))
+            (if def
+                (let ((formals (car def))
+                      (expr (cadr def)))
+                  (lambda (&rest args)
+                    (relint--apply formals args expr)))
+              'relint--no-value))))))
+   ((and (consp form) (eq (car form) 'lambda))
+    (let ((formals (cadr form))
+          (body (cddr form)))
+      (if (= (length body) 1)
+          (lambda (&rest args)
+            (relint--apply formals args (car body)))
+        'relint--no-value)))
+   (t 'relint--no-value)))
+
+;; Evaluate a form. Throw 'relint-eval 'no-value if something could
+;; not be evaluated safely.
 (defun relint--eval (form)
   (cond
    ((memq form '(nil t)) form)
@@ -328,102 +306,92 @@
          (let ((binding (assq form relint--variables)))
            (if binding
                (relint--eval (cdr binding))
-             'no-value))))
+             (throw 'relint-eval 'no-value)))))
    ((atom form)
     form)
    ((not (symbolp (car form)))
     (relint--add-to-error-buffer (format "eval error: %S\n" form))
-    'no-value)
+    (throw 'relint-eval 'no-value))
+
    ((eq (car form) 'quote)
     (if (and (consp (cadr form))
              (eq (caadr form) '\,))     ; In case we are inside a backquote.
-        'no-value
+        (throw 'relint-eval 'no-value)
       (cadr form)))
    ((eq (car form) 'function)
     (cadr form))
-   ((eq (car form) 'eval-when-compile)
-    (relint--eval (car (last form))))
    ((eq (car form) 'lambda)
     form)
+   ((eq (car form) 'eval-when-compile)
+    (relint--eval (car (last form))))
 
    ;; Reasonably pure functions: only call if all args can be fully evaluated.
    ((memq (car form) relint--safe-functions)
     (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
-          'no-value
-        ;; Catching all errors isn't wonderful, but sometimes a global
-        ;; variable argument has an unsuitable default value which is supposed
-        ;; to have been changed at the expression point.
-        (condition-case nil
-            (apply (car form) args)
-          (error 'no-value)))))
+      ;; Catching all errors isn't wonderful, but sometimes a global
+      ;; variable argument has an unsuitable default value which is supposed
+      ;; to have been changed at the expression point.
+      (condition-case nil
+          (apply (car form) args)
+        (error (throw 'relint-eval 'no-value)))))
 
    ;; Locally defined functions: try evaluating.
    ((assq (car form) relint--function-defs)
     (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
-          'no-value
-        (let* ((fn (cdr (assq (car form) relint--function-defs)))
-               (formals (car fn))
-               (expr (cadr fn)))
-          (relint--apply formals args expr)))))
+      (let* ((fn (cdr (assq (car form) relint--function-defs)))
+             (formals (car fn))
+             (expr (cadr fn)))
+        (relint--apply formals args expr))))
 
-   ;; replace-regexp-in-string: Only safe if no function given.
+   ;; replace-regexp-in-string: wrap the rep argument if it's a function.
    ((eq (car form) 'replace-regexp-in-string)
-    (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (and (not (memq 'no-value args))
-               (stringp (cadr args)))
-          (condition-case nil
-              (apply (car form) args)
-            (error 'no-value))
-        'no-value)))
+    (let ((all-args (mapcar #'relint--eval (cdr form))))
+      (let* ((rep-arg (cadr all-args))
+             (rep (if (stringp rep-arg)
+                      rep-arg
+                    (relint--wrap-function rep-arg)))
+             (args (append (list (car all-args) rep) (cddr all-args))))
+        (condition-case nil
+            (apply (car form) args)
+          (error (throw 'relint-eval 'no-value))))))
 
    ;; if: evaluate condition and the right branch.
    ((eq (car form) 'if)
     (let ((condition (relint--eval (cadr form))))
-      (if (eq condition 'no-value)
-          'no-value
-        (let ((then-part (nth 2 form))
-              (else-tail (nthcdr 3 form)))
-          (cond (condition
-                 (relint--eval then-part))
-                ((and else-tail (cdr else-tail))
-                 'no-value)             ; Ignore multi-value else bodies.
-                (else-tail
-                 (relint--eval (car else-tail))))))))
-
-   ;; when, unless: evaluate condition and maybe consequent.
-   ((memq (car form) '(when unless))
-    (let ((condition (relint--eval (cadr form)))
-          (body (cddr form)))
-      (cond ((or (eq condition 'no-value)
-                 (not (= (length body) 1)))
-             'no-value)
-            ((eq (not condition) (eq (car form) 'unless))
-             (relint--eval (car body))))))
+      (let ((then-part (nth 2 form))
+            (else-tail (nthcdr 3 form)))
+        (cond (condition
+               (relint--eval then-part))
+              ((and else-tail (cdr else-tail))
+               (throw 'relint-eval 'no-value)) ; Ignore multi-value else bodies
+              (else-tail
+               (relint--eval (car else-tail)))))))
 
    ;; and: keep evaluating until false or empty.
    ((eq (car form) 'and)
     (if (cdr form)
         (let ((val (relint--eval (cadr form))))
-          (if (eq val 'no-value)
-              'no-value
-            (if (and val (cddr form))
-                (relint--eval (cons 'and (cddr form)))
-              val)))
+          (if (and val (cddr form))
+              (relint--eval (cons 'and (cddr form)))
+            val))
       t))
 
-   ;; and: keep evaluating until true or empty.
+   ;; or: keep evaluating until true or empty.
    ((eq (car form) 'or)
     (if (cdr form)
         (let ((val (relint--eval (cadr form))))
-          (if (eq val 'no-value)
-              'no-value
-            (if (and (not val) (cddr form))
-                (relint--eval (cons 'or (cddr form)))
-              val)))
+          (if (and (not val) (cddr form))
+              (relint--eval (cons 'or (cddr form)))
+            val))
       nil))
    
+   ;; FIXME: cond
+
+   ((eq (car form) 'progn)
+    (cond ((null (cdr form)) nil)
+          ((null (cddr form)) (relint--eval (cadr form)))
+          (t (throw 'relint-eval 'no-value))))
+
    ((assq (car form) relint--safe-alternatives)
     (relint--eval (cons (cdr (assq (car form) relint--safe-alternatives))
                         (cdr form))))
@@ -431,84 +399,67 @@
    ;; delete-dups: Work on a copy of the argument.
    ((eq (car form) 'delete-dups)
     (let ((arg (relint--eval (cadr form))))
-      (if (eq arg 'no-value)
-          'no-value
-        (delete-dups (copy-sequence arg)))))
+      (delete-dups (copy-sequence arg))))
 
-   ((memq (car form) '(\` backquote-list*))
+   ;; FIXME: more macros: pcase, pcase-let...
+   ;; Maybe ones from cl?
+   ((memq (car form) '(when unless \` backquote-list*))
     (relint--eval (macroexpand form)))
 
    ;; apply: Call only if the function is safe and all args evaluated.
    ((eq (car form) 'apply)
     (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
-          'no-value
-        (let ((fun (relint--safe-function (car args) nil)))
-          (if fun
-              (condition-case err
-                  (apply #'apply (cons fun (cdr args)))
-                (error (signal 'relint--eval-error (format "eval error: %S: %s"
-                                                           form err))))
-            'no-value)))))
+      (let ((fun (relint--wrap-function (car args))))
+        (condition-case err
+            (apply #'apply (cons fun (cdr args)))
+          (error (signal 'relint--eval-error (format "eval error: %S: %s"
+                                                     form err)))))))
 
    ;; funcall: Call only if the function is safe and all args evaluated.
    ((eq (car form) 'funcall)
     (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
-          'no-value
-        (let ((fun (relint--safe-function (car args) nil)))
-          (if fun
-              (condition-case err
-                  (apply fun (cdr args))
-                (error (signal 'relint--eval-error (format "eval error: %S: %s"
-                                                           form err))))
-            'no-value)))))
+      (let ((fun (relint--wrap-function (car args))))
+        (condition-case err
+            (apply fun (cdr args))
+          (error (signal 'relint--eval-error (format "eval error: %S: %s"
+                                                     form err)))))))
 
    ;; mapcar, mapcan: Call only if the function is safe.
    ;; The sequence argument may be missing a few arguments that we cannot
    ;; evaluate.
    ((memq (car form) '(mapcar mapcan))
-    (let* ((fun (relint--safe-function (relint--eval (cadr form)) nil))
+    (let* ((fun (relint--wrap-function (relint--eval (cadr form))))
            (arg (relint--eval-list (caddr form)))
            (seq (if (listp arg)
                     (delq nil arg)
                   arg)))
-      (if fun
-          (condition-case err
-              (funcall (car form) fun seq)
-            (error (signal 'relint--eval-error (format "eval error: %S: %s"
-                                                       form err))))
-        'no-value)))
+      (condition-case err
+          (funcall (car form) fun seq)
+        (error (signal 'relint--eval-error (format "eval error: %S: %s"
+                                                   form err))))))
 
    ;; mapconcat: Call only if the function is safe and all arguments evaluated.
    ((eq (car form) 'mapconcat)
-    (let ((fun (relint--safe-function (relint--eval (cadr form)) nil))
+    (let ((fun (relint--wrap-function (relint--eval (cadr form))))
           (args (mapcar #'relint--eval (cddr form))))
-      (if fun
-          (if (memq 'no-value args)
-              'no-value
-            (condition-case err
-                (apply (car form) fun args)
-              (error (signal 'relint--eval-error (format "eval error: %S: %s"
-                                                         form err)))))
-        'no-value)))
+      (condition-case err
+          (apply (car form) fun args)
+        (error (signal 'relint--eval-error (format "eval error: %S: %s"
+                                                   form err))))))
           
+   ;; FIXME: sort
+
    ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
    ((eq (car form) 'rx)
     (relint--eval-rx (list (cons 'seq (cdr form)) t)))
 
    ((eq (car form) 'rx-to-string)
     (let ((args (mapcar #'relint--eval (cdr form))))
-      (if (memq 'no-value args)
-          'no-value
-        (relint--eval-rx args))))
+      (relint--eval-rx args)))
 
-   ;; setq: Ignore its side-effect and just pass on the value.
+   ;; setq: Ignore its side-effect and just pass on the value (dubious)
    ((eq (car form) 'setq)
-    (let ((val (relint--eval (caddr form))))
-      (if (eq val 'no-value)
-          'no-value
-        val)))
+    (relint--eval (caddr form)))
 
    ;; let and let*: do not permit multi-expression bodies, since they
    ;; will contain necessary side-effects that we don't handle.
@@ -545,11 +496,16 @@
    ((eq (car form) '\,)
     (relint--eval (cadr form)))
 
-   ((memq (car form) '(cond)) 'no-value)
-
    (t
     ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
-    'no-value)))
+    (throw 'relint-eval 'no-value))))
+
+;; Evaluate FORM. Return nil if something prevents it from being evaluated.
+(defun relint--eval-or-nil (form)
+  (let ((val (catch 'relint-eval (relint--eval form))))
+    (if (eq val 'no-value)
+        nil
+      val)))
 
 ;; Evaluate a form as far as possible, attempting to keep its list structure
 ;; even if all subexpressions cannot be evaluated. Parts that cannot be
@@ -579,10 +535,8 @@
                              (cdr form))))
 
    ((eq (car form) 'delete-dups)
-    (let ((arg (relint--eval (cadr form))))
-      (if (eq arg 'no-value)
-          'no-value
-        (delete-dups (copy-sequence arg)))))
+    (let ((arg (relint--eval-list (cadr form))))
+      (delete-dups (copy-sequence arg))))
 
    ((memq (car form) '(purecopy copy-sequence copy-alist))
     (relint--eval-list (cadr form)))
@@ -591,8 +545,7 @@
     (relint--eval-list (macroexpand form)))
 
    (t
-    (let ((val (relint--eval form)))
-      (if (eq val 'no-value) nil val)))))
+    (relint--eval-or-nil form))))
 
 ;; Convert something to a list, or nil.
 (defun relint--get-list (form file pos path)
@@ -606,7 +559,7 @@
 ;; Convert something to a string, or nil.
 (defun relint--get-string (form file pos path)
   (condition-case err
-      (let ((val (relint--eval form)))
+      (let ((val (relint--eval-or-nil form)))
         (and (stringp val) val))
     (relint--eval-error (relint--report file pos path (cdr err))
                         nil)))
