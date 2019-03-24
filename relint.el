@@ -175,6 +175,11 @@
 ;; and BODY its single body expression.
 (defvar relint--function-defs)
 
+;; List of possibly safe macros defined in the current file, each
+;; element on the form (MACRO ARGS BODY), where ARGS is the lambda list
+;; and BODY its single body expression.
+(defvar relint--macro-defs)
+
 ;; Functions that are safe to call during evaluation.
 ;; Except for altering the match state, these are pure.
 ;; More functions could be added if there is evidence that it would
@@ -213,6 +218,7 @@
     assoc-default member-ignore-case alist-get
     last butlast number-sequence
     plist-get plist-member
+    1value
     consp atom stringp symbolp listp nlistp booleanp
     integerp numberp natnump fixnump bignump characterp zerop
     sequencep vectorp arrayp
@@ -311,9 +317,6 @@
              (throw 'relint-eval 'no-value)))))
    ((atom form)
     form)
-   ((not (symbolp (car form)))
-    (relint--add-to-error-buffer (format "eval error: %S\n" form))
-    (throw 'relint-eval 'no-value))
 
    ((eq (car form) 'quote)
     (if (and (consp (cadr form))
@@ -344,6 +347,14 @@
              (formals (car fn))
              (expr (cadr fn)))
         (relint--apply formals args expr))))
+
+   ;; Locally defined macros: try expanding.
+   ((assq (car form) relint--macro-defs)
+    (let ((args (cdr form)))
+      (let* ((macro (cdr (assq (car form) relint--macro-defs)))
+             (formals (car macro))
+             (expr (cadr macro)))
+        (relint--eval (relint--apply formals args expr)))))
 
    ;; replace-regexp-in-string: wrap the rep argument if it's a function.
    ((eq (car form) 'replace-regexp-in-string)
@@ -654,13 +665,20 @@
   (pcase form
     (`(,(or `defun `defmacro `defsubst)
        ,name ,args . ,body)
-     ;; Save the function for possible use.
-     (unless (eq (car form) 'defmacro)
-       (when (stringp (car body))
-         (setq body (cdr body)))          ; Skip doc string.
-       ;; Only consider functions with single-expression bodies.
-       (when (= (length body) 1)
-         (push (list name args (car body)) relint--function-defs)))
+
+     ;; Save the function or macro for possible use.
+     (while (or (stringp (car body))
+                (and (consp (car body))
+                     (memq (caar body) '(interactive declare))))
+       (setq body (cdr body)))          ; Skip doc and declarations.
+     ;; Only consider functions/macros with single-expression bodies.
+     (when (= (length body) 1)
+       (let ((entry (list name args (car body))))
+         (if (eq (car form) 'defmacro)
+             (push entry relint--macro-defs)
+           (push entry relint--function-defs))
+         ))
+
      ;; If any argument looks like a regexp, remember it so that it can be
      ;; checked in calls.
      (when (consp args)
@@ -865,6 +883,7 @@
             (relint--checked-variables nil)
             (relint--regexp-functions nil)
             (relint--function-defs nil)
+            (relint--macro-defs nil)
             )
         (relint--check-buffer file forms #'relint--check-form-recursively-1)
         (relint--check-buffer file forms #'relint--check-form-recursively-2)))
