@@ -126,37 +126,27 @@
             2)))                        ; Lop off quotes
     (concat (make-string quoted-pos ?.) "^")))
 
-(defun relint--check-skip-set (skip-set-string name file pos path)
+(defun relint--check-string (string checker name file pos path)
   (let ((complaints
          (condition-case err
              (mapcar (lambda (warning)
                        (let ((ofs (car warning)))
                          (format "In %s: %s (pos %d)\n  %s\n   %s"
                                  name (cdr warning) ofs
-                                 (relint--quote-string skip-set-string)
-                                 (relint--caret-string skip-set-string ofs))))
-                     (xr-skip-set-lint skip-set-string))
+                                 (relint--quote-string string)
+                                 (relint--caret-string string ofs))))
+                     (funcall checker string))
            (error (list (format "In %s: Error: %s: %s"
                                 name  (cadr err)
-                                (relint--quote-string skip-set-string)))))))
+                                (relint--quote-string string)))))))
     (mapc (lambda (msg) (relint--report file pos path msg))
           complaints)))
 
+(defun relint--check-skip-set (skip-set-string name file pos path)
+  (relint--check-string skip-set-string #'xr-skip-set-lint name file pos path))
+
 (defun relint--check-re-string (re name file pos path)
-  (let ((complaints
-         (condition-case err
-             (mapcar (lambda (warning)
-                       (let ((ofs (car warning)))
-                         (format "In %s: %s (pos %d)\n  %s\n   %s"
-                                 name (cdr warning) ofs
-                                 (relint--quote-string re)
-                                 (relint--caret-string re ofs))))
-                     (xr-lint re))
-           (error (list (format "In %s: Error: %s: %s"
-                                name  (cadr err)
-                                (relint--quote-string re)))))))
-    (mapc (lambda (msg) (relint--report file pos path msg))
-          complaints)))
+  (relint--check-string re #'xr-lint name file pos path))
   
 ;; Alist of variable definitions seen so far.
 ;; The variable names map to unevaluated forms.
@@ -563,9 +553,6 @@
            (and val (relint--eval-list val)))))
    ((atom form)
     form)
-   ((not (symbolp (car form)))
-    (relint--add-to-error-buffer (format "eval error: %S\n" form))
-    nil)
    ((eq (car form) 'eval-when-compile)
     (relint--eval-list (car (last form))))
 
@@ -838,10 +825,6 @@
       (display-buffer (relint--error-buffer))
       (sit-for 0))))
 
-(defun relint--check-buffer (file forms function)
-  (dolist (form forms)
-    (funcall function (car form) file (cdr form) nil)))
-
 ;; Read top-level forms from the current buffer.
 ;; Return a list of (FORM . STARTING-POSITION).
 (defun relint--read-buffer (file)
@@ -885,48 +868,53 @@
             (relint--function-defs nil)
             (relint--macro-defs nil)
             )
-        (relint--check-buffer file forms #'relint--check-form-recursively-1)
-        (relint--check-buffer file forms #'relint--check-form-recursively-2)))
+        (dolist (form forms)
+          (relint--check-form-recursively-1 (car form) file (cdr form) nil))
+        (dolist (form forms)
+          (relint--check-form-recursively-2 (car form) file (cdr form) nil))))
     (when (> relint--error-count errors-before)
       (relint--show-errors))))
         
-(defun relint--tree (dir)
-  (dolist (file (directory-files-recursively
-                 dir (rx bos (not (any ".")) (* anything) ".el" eos)))
-    ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
-    (relint--single-file file)))
-
-(defun relint--init (file-or-dir dir)
-  (unless noninteractive
+(defun relint--init (dir)
+  (if noninteractive
+      (setq relint--error-count 0)
     (with-current-buffer (relint--error-buffer)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert (format ";; relint %s  -*- compilation -*-\n" file-or-dir)))
-      (setq relint--error-count 0)
-      (cd dir))))
+        (insert ";; -*- compilation -*-\n"))
+      (setq default-directory dir)
+      (setq relint--error-count 0))))
 
 (defun relint--finish ()
-  (relint--add-to-error-buffer "Finished.\n")
-  (let ((errors relint--error-count))
-    (message "relint: %d error%s found." errors (if (= errors 1) "" "s"))))
+  (unless noninteractive
+    (relint--add-to-error-buffer "Finished.\n")
+    (let ((errors relint--error-count))
+      (message "relint: %d error%s found." errors (if (= errors 1) "" "s")))))
+
+(defun relint--scan-files (files cwd)
+  (relint--init cwd)
+  (dolist (file files)
+    ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
+    (relint--single-file file))
+  (relint--finish))
+
+(defun relint--tree-files (dir)
+  (directory-files-recursively
+   dir (rx bos (not (any ".")) (* anything) ".el" eos)))
 
 
 ;;;###autoload
 (defun relint-file (file)
   "Scan FILE, an elisp file, for errors in regexp strings."
   (interactive "fRelint elisp file: ")
-  (relint--init file (file-name-directory file))
-  (relint--single-file file)
-  (relint--finish))
+  (relint--scan-files (list file) (file-name-directory file)))
         
 
 ;;;###autoload
 (defun relint-directory (dir)
   "Scan all *.el files in DIR for errors in regexp strings."
   (interactive "DRelint directory: ")
-  (relint--init dir dir)
-  (relint--tree dir)
-  (relint--finish))
+  (relint--scan-files (relint--tree-files dir) dir))
 
 
 (defun relint-batch ()
@@ -936,12 +924,13 @@ command-line arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan."
   (unless noninteractive
     (error "`relint-batch' is only for use with -batch"))
-  (setq relint--error-count 0)
-  (while command-line-args-left
-    (let ((arg (pop command-line-args-left)))
-      (if (file-directory-p arg)
-          (relint--tree arg)
-        (relint--single-file arg)))))
+  (relint--scan-files (mapcan (lambda (arg)
+                                (if (file-directory-p arg)
+                                    (relint--tree-files arg)
+                                  (list arg)))
+                              command-line-args-left)
+                      default-directory)
+  (setq command-line-args-left nil))
 
 (provide 'relint)
 
