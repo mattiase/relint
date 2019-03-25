@@ -648,6 +648,36 @@
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (relint--get-list form file pos path)))
 
+;; List of known regexp-generating functions used in EXPR.
+;; EXPANDED is a list of expanded functions, to prevent recursion.
+(defun relint--regexp-generators (expr expanded)
+  (cond
+   ((symbolp expr)
+    (let ((def (assq expr relint--variables)))
+      (and def (relint--regexp-generators (cdr def) expanded))))
+   ((atom expr) nil)
+   ((memq (car expr) '(regexp-quote regexp-opt regexp-opt-charset
+                       rx rx-to-string wildcard-to-regexp))
+    (list (car expr)))
+   ((memq (car expr) '(looking-at re-search-forward re-search-backward
+                       string-match string-match-p looking-back looking-at-p))
+    nil)
+   ((listp (cdr (last expr)))
+    (let ((head (car expr)))
+      (append (mapcan (lambda (x) (relint--regexp-generators x expanded))
+                      (cdr expr))
+              (let ((fun (assq head relint--function-defs)))
+                (and fun (not (memq head expanded))
+                     (relint--regexp-generators
+                      (caddr fun) (cons head expanded)))))))))
+
+(defun relint--check-skip-set-provenance (skip-function form file pos path)
+  (let ((reg-gen (relint--regexp-generators form nil)))
+    (when reg-gen
+      (relint--report file pos path
+                      (format "`%s' cannot be used for arguments to `%s'"
+                              (car reg-gen) skip-function)))))
+
 (defun relint--check-form-recursively-1 (form file pos path)
   (pcase form
     (`(,(or `defun `defmacro `defsubst)
@@ -743,7 +773,10 @@
      (let ((str (relint--get-string skip-arg file pos path)))
        (when str
          (relint--check-skip-set str (format "call to %s" (car form))
-                                 file pos (cons 1 path)))))
+                                 file pos (cons 1 path))))
+     (relint--check-skip-set-provenance
+      (car form) skip-arg file pos (cons 1 path))
+     )
     (`(,(or `defvar `defconst `defcustom)
        ,name ,re-arg . ,rest)
      (when (symbolp name)
