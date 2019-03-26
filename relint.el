@@ -45,6 +45,7 @@
 ;;; Code:
 
 (require 'xr)
+(require 'compile)
 
 (defconst relint--error-buffer-name "*relint*")
 
@@ -53,7 +54,7 @@
     (or buf
         (let ((buf (get-buffer-create relint--error-buffer-name)))
           (with-current-buffer buf
-            (compilation-mode))
+            (relint-mode))
           buf))))
 
 (defvar relint--error-count)
@@ -975,24 +976,52 @@
     (when (> relint--error-count errors-before)
       (relint--show-errors))))
         
-(defun relint--init (dir)
+(defvar relint-last-target nil
+  "The last file or directory on which relint was run.  Buffer-local.")
+
+(defun relint--init (target)
   (if noninteractive
       (setq relint--error-count 0)
     (with-current-buffer (relint--error-buffer)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert ";; -*- compilation -*-\n"))
-      (setq default-directory dir)
+        (insert (format "Relint results for %s\n" target)))
+      (setq relint-last-target target)
+      (setq default-directory
+            (if (file-directory-p target)
+                target
+              (file-name-directory target)))
       (setq relint--error-count 0))))
 
 (defun relint--finish ()
-  (unless noninteractive
-    (relint--add-to-error-buffer "Finished.\n")
-    (let ((errors relint--error-count))
-      (message "relint: %d error%s found." errors (if (= errors 1) "" "s")))))
+  (let* ((errors relint--error-count)
+         (msg (format "%d error%s" errors (if (= errors 1) "" "s"))))
+    (unless noninteractive
+      (relint--add-to-error-buffer (format "\nFinished -- %s found.\n" msg)))
+    (message "relint: %s found." msg)))
 
-(defun relint--scan-files (files cwd)
-  (relint--init cwd)
+(defun relint-again ()
+  "Re-run relint on the same file or directory as last time."
+  (interactive)
+  (if (file-directory-p relint-last-target)
+      (relint-directory relint-last-target)
+    (relint-file relint-last-target)))
+
+(defvar relint-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map compilation-minor-mode-map)
+    (define-key map "n" 'next-error-no-select)
+    (define-key map "p" 'previous-error-no-select)
+    (define-key map "g" 'relint-again)
+    map)
+  "Keymap for relint buffers.")
+
+(define-compilation-mode relint-mode "Relint"
+  "Mode for relint output."
+  (setq-local relint-last-target nil))
+
+(defun relint--scan-files (files target)
+  (relint--init target)
   (dolist (file files)
     ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
     (relint--single-file file))
@@ -1007,7 +1036,7 @@
 (defun relint-file (file)
   "Scan FILE, an elisp file, for errors in regexp strings."
   (interactive "fRelint elisp file: ")
-  (relint--scan-files (list file) (file-name-directory file)))
+  (relint--scan-files (list file) file))
         
 
 ;;;###autoload
