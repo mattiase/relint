@@ -1,8 +1,11 @@
 ;;; relint.el --- Elisp regexp mistake finder   -*- lexical-binding: t -*-
 
+;; Copyright (C) 2019 Free Software Foundation, Inc.
+
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.4
+;; Version: 1.5
 ;; Package-Requires: ((xr "1.7"))
+;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
 
 ;; This program is free software; you can redistribute it and/or modify
