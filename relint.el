@@ -678,6 +678,67 @@
                       (format "`%s' cannot be used for arguments to `%s'"
                               (car reg-gen) skip-function)))))
 
+;; Look for a format expression that suggests insertion of a regexp
+;; into a character alternative: "[%s]" where the corresponding format
+;; parameter is regexp-generating.
+(defun relint--check-format-mixup (template args file pos path)
+  (let ((nargs (length args))
+        (index 0)
+        (start 0))
+    (while (and (< index nargs)
+                (string-match (rx
+                                ;; An unescaped [, and some leading chars
+                               (opt (or bos (not (any "\\")))
+                                    (0+ "\\\\")
+                                    (group "[")
+                                    (0+ (not (any "]"))))
+                               ;; Any %-sequence
+                               "%"
+                               (opt (1+ digit) "$")
+                               (0+ digit)
+                               (opt "." (0+ digit))
+                               (group (any "%sdioxXefgcS")))
+                              template start))
+      (let ((bracket (match-beginning 1))
+            (type (string-to-char (match-string 2 template)))
+            (next (match-end 0)))
+        (when (and bracket (eq type ?s))
+          (let ((reg-gen (relint--regexp-generators (nth index args) nil)))
+            (when reg-gen
+              (relint--report
+               file pos (cons (+ index 2) path)
+               (format
+                "Value from `%s' cannot be spliced into `[...]'"
+                (car reg-gen))))))
+        (unless (eq type ?%)
+          (setq index (1+ index)))
+        (setq start next)))))
+
+;; Look for concat args that suggest insertion of a regexp into a
+;; character alternative: "[" followed by a regexp-generating
+;; expression.
+(defun relint--check-concat-mixup (args file pos path)
+  (let ((index 1))
+    (while (consp args)
+      (let ((arg (car args)))
+        (when (and (stringp arg)
+                   (cdr args)
+                   (string-match-p (rx (or bos (not (any "\\")))
+                                       (0+ "\\\\")
+                                       "["
+                                       (0+ (not (any "]")))
+                                       eos)
+                                   arg))
+          (let ((reg-gen (relint--regexp-generators (cadr args) nil)))
+            (when reg-gen
+              (relint--report
+               file pos (cons (1+ index) path)
+               (format
+                "Value from `%s' cannot be spliced into `[...]'"
+                (car reg-gen)))))))
+      (setq index (1+ index))
+      (setq args (cdr args)))))
+
 (defun relint--check-form-recursively-1 (form file pos path)
   (pcase form
     (`(,(or `defun `defmacro `defsubst)
@@ -777,6 +838,12 @@
      (relint--check-skip-set-provenance
       (car form) skip-arg file pos (cons 1 path))
      )
+    (`(concat . ,args)
+     (relint--check-concat-mixup args file pos path))
+    (`(format ,template-arg . ,args)
+     (let ((template (relint--get-string template-arg file pos path)))
+       (when template
+         (relint--check-format-mixup template args file pos path))))
     (`(,(or `defvar `defconst `defcustom)
        ,name ,re-arg . ,rest)
      (when (symbolp name)
