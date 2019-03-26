@@ -39,11 +39,17 @@
 ;;
 ;;   emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
 ;;
-;; Since there is no sure way to know whether a particular string is a
-;; regexp, the code has to guess a lot, and will likely miss quite a
-;; few. It tries to minimise the amount of false positives.
+;;   where options for finding relint and xr need to be added after
+;;   `-batch', either `-f package-initialize' or `-L DIR'.
 ;;
-;; In other words, it is a nothing but a hack.
+;; In the `*relint*' buffer, pressing "g" will re-run the same check.
+;;
+;; Bugs:
+;;
+;;   Since there is no sure way to know whether a particular string is a
+;;   regexp, the code has to guess a lot, and will likely miss quite a
+;;   few. It tries to minimise the amount of false positives.
+;;   In other words, it is a nothing but a hack.
 
 ;;; Code:
 

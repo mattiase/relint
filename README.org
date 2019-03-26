@@ -20,12 +20,16 @@ From batch mode:
 : emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
 
 where directories are scanned recursively.
+(Options for finding relint and xr need to be added after
+~-batch~, either ~-f package-initialize~ or ~-L DIR~.)
+
+In the ~*relint*~ buffer, pressing "g" will re-run the same check.
 
 * Installation
 
-Download the source file =relint.el= and set ~load-path~:
+From [[https://elpa.gnu.org/packages/relint.html][GNU ELPA]]:
 
-: (add-to-list 'load-path "RELINT-DIRECTORY")
+: M-x package-install RET relint RET
 
 Relint requires the package [[https://elpa.gnu.org/packages/xr.html][xr]]; install it from GNU ELPA.
 
