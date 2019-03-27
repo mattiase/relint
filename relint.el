@@ -1035,7 +1035,8 @@
     (with-current-buffer (relint--error-buffer)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert (format "Relint results for %s\n" target)))
+        (insert (format "Relint results for %s\n" target))
+        (relint--show-errors))
       (setq relint-last-target target)
       (setq default-directory
             (if (file-directory-p target)
@@ -1093,7 +1094,10 @@
 (defun relint-directory (dir)
   "Scan all *.el files in DIR for errors in regexp strings."
   (interactive "DRelint directory: ")
-  (relint--scan-files (relint--tree-files dir) dir))
+  (message "Finding .el files in %s..." dir)
+  (let ((files (relint--tree-files dir)))
+    (message "Scanning files...")
+    (relint--scan-files files dir)))
 
 
 (defun relint-batch ()
