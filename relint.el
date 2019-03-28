@@ -192,7 +192,7 @@
     format format-message
     regexp-quote regexp-opt regexp-opt-charset
     reverse
-    member memq remove remq member-ignore-case
+    member memq memql remove remq member-ignore-case
     assoc assq rassoc rassq
     identity
     string make-string make-list
