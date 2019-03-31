@@ -706,16 +706,29 @@
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (relint--get-list form file pos path)))
 
-;; List of known regexp-generating functions used in EXPR.
+;; List of regexp-generating functions and variables used in EXPR.
 ;; EXPANDED is a list of expanded functions, to prevent recursion.
 (defun relint--regexp-generators (expr expanded)
   (cond
    ((symbolp expr)
-    (let ((def (assq expr relint--variables)))
-      (and def (relint--regexp-generators (cdr def) expanded))))
+    (and (not (memq expr '(nil t)))
+         (let ((def (assq expr relint--variables)))
+           (if def
+               (relint--regexp-generators (cdr def) expanded)
+             (and (or (memq expr '(page-delimiter paragraph-separate
+                                   paragraph-start sentence-end))
+                      ;; This is guesswork, but effective.
+                      (string-match-p
+                       (rx (or (seq bos (or "regexp" "regex"))
+                               (or "-regexp" "-regex" "-re"))
+                           eos)
+                       (symbol-name expr)))
+                  (list expr))))))
    ((atom expr) nil)
    ((memq (car expr) '(regexp-quote regexp-opt regexp-opt-charset
-                       rx rx-to-string wildcard-to-regexp))
+                       rx rx-to-string wildcard-to-regexp read-regexp
+                       char-fold-to-regexp find-tag-default-as-regexp
+                       find-tag-default-as-symbol-regexp sentence-end))
     (list (car expr)))
    ((memq (car expr) '(looking-at re-search-forward re-search-backward
                        string-match string-match-p looking-back looking-at-p))
