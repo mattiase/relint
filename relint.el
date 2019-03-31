@@ -32,8 +32,9 @@
 ;;
 ;; * Inside Emacs:
 ;;
-;;   M-x relint-file       (check a single elisp file)
-;;   M-x relint-directory  (check all .el files in a directory tree)
+;;   M-x relint-file            (check a single elisp file)
+;;   M-x relint-directory       (check all .el files in a directory tree)
+;;   M-x relint-current-buffer  (check current buffer)
 ;;
 ;; * From batch mode:
 ;;
@@ -1012,42 +1013,42 @@
           (push (cons form pos) forms))))
     (nreverse forms)))
 
-(defun relint--single-file (file)
+(defun relint--scan-current-buffer (file)
   (let ((errors-before relint--error-count))
-    (with-temp-buffer
-      (emacs-lisp-mode)
-      (insert-file-contents file)
-      (let ((forms (relint--read-buffer file))
-            (case-fold-search nil)
-            (relint--variables nil)
-            (relint--checked-variables nil)
-            (relint--regexp-functions nil)
-            (relint--function-defs nil)
-            (relint--macro-defs nil)
-            )
-        (dolist (form forms)
-          (relint--check-form-recursively-1 (car form) file (cdr form) nil))
-        (dolist (form forms)
-          (relint--check-form-recursively-2 (car form) file (cdr form) nil))))
+    (let ((forms (relint--read-buffer file))
+          (relint--variables nil)
+          (relint--checked-variables nil)
+          (relint--regexp-functions nil)
+          (relint--function-defs nil)
+          (relint--macro-defs nil)
+          (case-fold-search nil))
+      (dolist (form forms)
+        (relint--check-form-recursively-1 (car form) file (cdr form) nil))
+      (dolist (form forms)
+        (relint--check-form-recursively-2 (car form) file (cdr form) nil)))
     (when (> relint--error-count errors-before)
       (relint--show-errors))))
+
+(defun relint--scan-file (file base-dir)
+  (with-temp-buffer
+    (emacs-lisp-mode)
+    (insert-file-contents file)
+    (relint--scan-current-buffer (file-relative-name file base-dir))))
         
 (defvar relint-last-target nil
-  "The last file or directory on which relint was run.  Buffer-local.")
+  "The last file, directory or buffer on which relint was run.")
 
-(defun relint--init (target)
+(defun relint--init (target base-dir)
   (if noninteractive
       (setq relint--error-count 0)
     (with-current-buffer (relint--error-buffer)
       (let ((inhibit-read-only t))
+        (compilation-forget-errors)
         (erase-buffer)
         (insert (format "Relint results for %s\n" target))
         (relint--show-errors))
       (setq relint-last-target target)
-      (setq default-directory
-            (if (file-directory-p target)
-                target
-              (file-name-directory target)))
+      (setq default-directory base-dir)
       (setq relint--error-count 0))))
 
 (defun relint--finish ()
@@ -1058,11 +1059,16 @@
     (message "relint: %s found." msg)))
 
 (defun relint-again ()
-  "Re-run relint on the same file or directory as last time."
+  "Re-run relint on the same file, directory or buffer as last time."
   (interactive)
-  (if (file-directory-p relint-last-target)
-      (relint-directory relint-last-target)
-    (relint-file relint-last-target)))
+  (cond ((bufferp relint-last-target)
+         (with-current-buffer relint-last-target
+           (relint-current-buffer)))
+        ((file-directory-p relint-last-target)
+         (relint-directory relint-last-target))
+        ((file-readable-p relint-last-target)
+         (relint-file relint-last-target))
+        (t (error "No target"))))
 
 (defvar relint-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1077,11 +1083,11 @@
   "Mode for relint output."
   (setq-local relint-last-target nil))
 
-(defun relint--scan-files (files target)
-  (relint--init target)
+(defun relint--scan-files (files target base-dir)
+  (relint--init target base-dir)
   (dolist (file files)
     ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
-    (relint--single-file file))
+    (relint--scan-file file base-dir))
   (relint--finish))
 
 (defun relint--tree-files (dir)
@@ -1091,23 +1097,34 @@
 
 ;;;###autoload
 (defun relint-file (file)
-  "Scan FILE, an elisp file, for errors in regexp strings."
+  "Scan FILE, an elisp file, for regexp-related errors."
   (interactive "fRelint elisp file: ")
-  (relint--scan-files (list file) file))
-        
+  (relint--scan-files (list file) file (file-name-directory file)))
 
 ;;;###autoload
 (defun relint-directory (dir)
-  "Scan all *.el files in DIR for errors in regexp strings."
+  "Scan all *.el files in DIR for regexp-related errors."
   (interactive "DRelint directory: ")
   (message "Finding .el files in %s..." dir)
   (let ((files (relint--tree-files dir)))
     (message "Scanning files...")
-    (relint--scan-files files dir)))
+    (relint--scan-files files dir dir)))
+
+;;;###autoload
+(defun relint-current-buffer ()
+  "Scan the current buffer for regexp errors.
+The buffer must be in emacs-lisp-mode."
+  (interactive)
+  (unless (eq major-mode 'emacs-lisp-mode)
+    (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
+  (relint--init (current-buffer) default-directory)
+  (save-excursion
+    (relint--scan-current-buffer (buffer-name)))
+  (relint--finish))
 
 
 (defun relint-batch ()
-  "Scan elisp source files for errors in regex strings.
+  "Scan elisp source files for regexp-related errors.
 Call this function in batch mode with files and directories as
 command-line arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan."
@@ -1118,7 +1135,7 @@ searched recursively for *.el files to scan."
                                     (relint--tree-files arg)
                                   (list arg)))
                               command-line-args-left)
-                      default-directory)
+                      nil default-directory)
   (setq command-line-args-left nil))
 
 (provide 'relint)

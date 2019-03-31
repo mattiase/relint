@@ -15,6 +15,10 @@ Check all .el files in a directory tree:
 
 : M-x relint-directory
 
+Check current buffer:
+
+: M-x relint-current-buffer
+
 From batch mode:
 
 : emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
