@@ -903,7 +903,7 @@
                   (memq re-arg relint--checked-variables))
        (relint--check-re re-arg (format "call to %s" (car form))
                          file pos (cons 2 path)))
-     ;; string-trim has another regexp argument (trim, arg 3)
+     ;; string-trim has another regexp argument (trim-right, arg 3)
      (when (and (eq (car form) 'string-trim)
                 (car rest))
        (let ((right (car rest)))
