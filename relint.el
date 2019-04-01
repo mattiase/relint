@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.5
-;; Package-Requires: ((xr "1.7"))
+;; Version: 1.6
+;; Package-Requires: ((xr "1.10"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
 
@@ -25,7 +25,7 @@
 
 ;; Scan elisp files for regexp strings and reports potential errors,
 ;; including deprecated syntax and bad practice.
-;; Also check the regexp-like-but-not-quite skip-set arguments to
+;; Also check the regexp-like skip-set arguments to
 ;; `skip-chars-forward' and `skip-chars-backward'.
 ;;
 ;; How to use:
@@ -36,21 +36,40 @@
 ;;   M-x relint-directory       (check all .el files in a directory tree)
 ;;   M-x relint-current-buffer  (check current buffer)
 ;;
+;;   In the `*relint*' buffer, pressing "g" will re-run the same check.
+;;
 ;; * From batch mode:
 ;;
 ;;   emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
 ;;
 ;;   where options for finding relint and xr need to be added after
 ;;   `-batch', either `-f package-initialize' or `-L DIR'.
-;;
-;; In the `*relint*' buffer, pressing "g" will re-run the same check.
-;;
+
 ;; Bugs:
 ;;
 ;;   Since there is no sure way to know whether a particular string is a
 ;;   regexp, the code has to guess a lot, and will likely miss quite a
 ;;   few. It tries to minimise the amount of false positives.
 ;;   In other words, it is a nothing but a hack.
+
+;;; News:
+
+;; Version 1.6:
+;; - Add `relint-current-buffer'
+;; - Show relative file names in *relint*
+;; - Extended regexp-generating heuristics, warning about suspiciously-named
+;;   variables used as skip-sets
+;; - "-patterns" and "-pattern-list" are no longer interesting variable
+;;   suffixes
+;; Version 1.5:
+;; - Substantially improved evaluator, able to evaluate some functions and
+;;   macros defined in the same file, even when passed as parameters
+;; - Detect regexps spliced into [...]
+;; - Check bad skip-set provenance
+;; - The *relint* buffer now uses a new relint-mode for better usability,
+;;   with "g" bound to `relint-again'
+;; Version 1.4:
+;; - First version after name change to `relint'
 
 ;;; Code:
 
