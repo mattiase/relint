@@ -731,9 +731,10 @@
   (cond
    ((symbolp expr)
     (and (not (memq expr '(nil t)))
-         (let ((def (assq expr relint--variables)))
-           (if def
-               (relint--regexp-generators (cdr def) expanded)
+         ;; Check both variable contents and name.
+         (or (let ((def (assq expr relint--variables)))
+               (and def
+                    (relint--regexp-generators (cdr def) expanded)))
              (and (or (memq expr '(page-delimiter paragraph-separate
                                    paragraph-start sentence-end))
                       ;; This is guesswork, but effective.
@@ -742,7 +743,7 @@
                                (or "-regexp" "-regex" "-re"))
                            eos)
                        (symbol-name expr)))
-                  (list expr))))))
+                  (list expr)))))
    ((atom expr) nil)
    ((memq (car expr) '(regexp-quote regexp-opt regexp-opt-charset
                        rx rx-to-string wildcard-to-regexp read-regexp
