@@ -320,16 +320,14 @@
    ((symbolp form)
     (if (memq form relint--safe-functions)
         form
-      (let ((alt (cdr (assq form relint--safe-alternatives))))
-        (if alt
-            alt
+      (or (cdr (assq form relint--safe-alternatives))
           (let ((def (cdr (assq form relint--function-defs))))
             (if def
                 (let ((formals (car def))
                       (expr (cadr def)))
                   (lambda (&rest args)
                     (relint--apply formals args expr)))
-              'relint--no-value))))))
+              'relint--no-value)))))
    ((and (consp form) (eq (car form) 'lambda))
     (let ((formals (cadr form))
           (body (cddr form)))
@@ -853,11 +851,10 @@
        (setq body (cdr body)))          ; Skip doc and declarations.
      ;; Only consider functions/macros with single-expression bodies.
      (when (= (length body) 1)
-       (let ((entry (list name args (car body))))
-         (if (eq (car form) 'defmacro)
-             (push entry relint--macro-defs)
-           (push entry relint--function-defs))
-         ))
+       (push (list name args (car body))
+             (if (eq (car form) 'defmacro)
+                 relint--macro-defs
+               relint--function-defs)))
 
      ;; If any argument looks like a regexp, remember it so that it can be
      ;; checked in calls.
