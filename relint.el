@@ -75,7 +75,7 @@
 
 (require 'xr)
 (require 'compile)
-(require 'cl-seq)
+(require 'cl-lib)
 
 (defconst relint--error-buffer-name "*relint*")
 
@@ -223,7 +223,7 @@
     eq eql equal
     string-equal string= string< string-lessp string> string-greaterp
     char-equal string-match-p
-    string-match split-string replace-regexp-in-string
+    string-match split-string
     wildcard-to-regexp
     combine-and-quote-strings split-string-and-unquote
     string-to-multibyte string-as-multibyte string-to-unibyte string-as-unibyte
@@ -236,7 +236,7 @@
     string-to-list string-to-vector string-or-null-p
     upcase downcase capitalize
     purecopy copy-sequence copy-alist copy-tree
-    assoc-default member-ignore-case alist-get
+    member-ignore-case
     last butlast number-sequence
     plist-get plist-member
     1value
@@ -416,6 +416,17 @@
         (condition-case nil
             (apply (car form) args)
           (error (throw 'relint-eval 'no-value))))))
+
+   ;; alist-get: wrap the optional fifth argument (testfn).
+   ((eq (car form) 'alist-get)
+    (let* ((all-args (mapcar #'relint--eval (cdr form)))
+           (args (if (< (length all-args) 5)
+                     all-args
+                   (append (butlast all-args (- (length all-args) 4))
+                           (list (relint--wrap-function (nth 4 all-args)))))))
+      (condition-case nil
+          (apply (car form) args)
+        (error (throw 'relint-eval 'no-value)))))
 
    ((eq (car form) 'if)
     (let ((condition (relint--eval (cadr form))))
