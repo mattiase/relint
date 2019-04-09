@@ -95,9 +95,9 @@
     (let ((inhibit-read-only t))
       (insert string))))
 
-;; Compute (LINE . COLUMN) from POS (toplevel position)
-;; and PATH (reversed list of list indices to follow to target).
 (defun relint--line-col-from-pos-path (pos path)
+  "Compute (LINE . COLUMN) from POS (toplevel position)
+and PATH (reversed list of list indices to follow to target)."
   (save-excursion
     (goto-char pos)
     (let ((p (reverse path)))
@@ -179,9 +179,10 @@
 (defun relint--check-re-string (re name file pos path)
   (relint--check-string re #'xr-lint name file pos path))
   
-;; Alist of variable definitions seen so far.
-;; The variable names map to unevaluated forms.
-(defvar relint--variables)
+(defvar relint--variables nil
+  "Alist of variable definitions seen so far.
+ The variable names map to unevaluated forms.")
+
 
 ;; List of variables that have been checked, so that we can avoid
 ;; checking direct uses of it.
@@ -201,10 +202,6 @@
 ;; and BODY its single body expression.
 (defvar relint--macro-defs)
 
-;; Functions that are safe to call during evaluation.
-;; Except for altering the match state, these are pure.
-;; More functions could be added if there is evidence that it would
-;; help in evaluating more regexp strings.
 (defconst relint--safe-functions
   '(cons list append
     concat
@@ -243,19 +240,23 @@
     consp atom stringp symbolp listp nlistp booleanp
     integerp numberp natnump fixnump bignump characterp zerop
     sequencep vectorp arrayp
-    + - * / % mod 1+ 1- max min < <= = > >= /= abs))
+    + - * / % mod 1+ 1- max min < <= = > >= /= abs)
+  "Functions that are safe to call during evaluation.
+Except for altering the match state, these are side-effect-free
+and reasonably pure (some depend on variables in fairly uninteresting ways,
+like `case-fold-search').
+More functions could be added if there is evidence that it would
+help in evaluating more regexp strings.")
 
-;; Alist mapping non-safe functions to semantically equivalent safe
-;; alternatives.
 (defconst relint--safe-alternatives
   '((nconc    . append)
     (delete   . remove)
     (delq     . remq)
     (nreverse . reverse)
-    (nbutlast . butlast)))
+    (nbutlast . butlast))
+"Alist mapping non-safe functions to semantically equivalent safe
+alternatives.")
 
-;; Alist mapping non-safe cl functions to semantically equivalent safe
-;; alternatives. They may still require wrapping their function arguments.
 (defconst relint--safe-cl-alternatives
   '((cl-delete-duplicates . cl-remove-duplicates)
     (cl-delete            . cl-remove)
@@ -266,10 +267,12 @@
     (cl-nintersection     . cl-intersection)
     (cl-nset-difference   . cl-set-difference)
     (cl-nset-exclusive-or . cl-set-exclusive-or)
-    (cl-nsublis           . cl-sublis)))
+    (cl-nsublis           . cl-sublis))
+"Alist mapping non-safe cl functions to semantically equivalent safe
+alternatives. They may still require wrapping their function arguments.")
 
-;; Make an `rx' form safe to translate, by mutating (eval ...) subforms.
 (defun relint--rx-safe (form)
+  "Make an `rx' form safe to translate, by mutating (eval ...) subforms."
   (cond
    ((atom form) t)
    ((eq (car form) 'eval)
@@ -282,16 +285,16 @@
 
 (define-error 'relint--eval-error "relint expression evaluation error")
 
-;; Evaluate an `rx-to-string' expression if safe.
 (defun relint--eval-rx (args)
+  "Evaluate an `rx-to-string' expression if safe."
   (if (relint--rx-safe (car args))
       (condition-case err
           (apply #'rx-to-string args)
         (error (signal 'relint--eval-error (format "rx error: %s" (cadr err)))))
     (throw 'relint-eval 'no-value)))
 
-;; Bind FORMALS to ACTUALS and evaluate EXPR.
 (defun relint--apply (formals actuals expr)
+  "Bind FORMALS to ACTUALS and evaluate EXPR."
   (let ((bindings nil))
     (while formals
       (cond
@@ -309,13 +312,13 @@
     (let ((relint--variables (append bindings relint--variables)))
       (relint--eval expr))))
 
-;; A function that fails when called.
 (defun relint--no-value (&rest _)
+  "A function that fails when called."
   (throw 'relint-eval 'no-value))
 
-;; Transform an evaluated function (typically a symbol or lambda expr)
-;; into something that can be called safely.
 (defun relint--wrap-function (form)
+  "Transform an evaluated function (typically a symbol or lambda expr)
+into something that can be called safely."
   (cond
    ((symbolp form)
     (if (memq form relint--safe-functions)
@@ -337,8 +340,8 @@
         'relint--no-value)))
    (t 'relint--no-value)))
 
-;; Wrap the function arguments :test, :test-not, :key in ARGS.
 (defun relint--wrap-cl-keyword-args (args)
+  "Wrap the function arguments :test, :test-not, :key in ARGS."
   (let ((test     (plist-get args :test))
         (test-not (plist-get args :test-not))
         (key      (plist-get args :key))
@@ -351,9 +354,9 @@
       (plist-put ret :key      (relint--wrap-function key)))
     ret))
 
-;; Evaluate a form. Throw 'relint-eval 'no-value if something could
-;; not be evaluated safely.
 (defun relint--eval (form)
+  "Evaluate a form. Throw 'relint-eval 'no-value if something could
+not be evaluated safely."
   (cond
    ((memq form '(nil t)) form)
    ((symbolp form)
@@ -621,17 +624,17 @@
     ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
     (throw 'relint-eval 'no-value))))
 
-;; Evaluate FORM. Return nil if something prevents it from being evaluated.
 (defun relint--eval-or-nil (form)
+  "Evaluate FORM. Return nil if something prevents it from being evaluated."
   (let ((val (catch 'relint-eval (relint--eval form))))
     (if (eq val 'no-value)
         nil
       val)))
 
-;; Evaluate a form as far as possible, attempting to keep its list structure
-;; even if all subexpressions cannot be evaluated. Parts that cannot be
-;; evaluated are nil.
 (defun relint--eval-list (form)
+  "Evaluate a form as far as possible, attempting to keep its list structure
+even if all subexpressions cannot be evaluated. Parts that cannot be
+evaluated are nil."
   (cond
    ((symbolp form)
     (and form
@@ -665,8 +668,8 @@
    (t
     (relint--eval-or-nil form))))
 
-;; Convert something to a list, or nil.
 (defun relint--get-list (form file pos path)
+  "Convert something to a list, or nil."
   (condition-case err
       (let ((val (relint--eval-list form)))
         (and (consp val) val))
@@ -674,8 +677,8 @@
                         nil)))
   
 
-;; Convert something to a string, or nil.
 (defun relint--get-string (form file pos path)
+  "Convert something to a string, or nil."
   (condition-case err
       (let ((val (relint--eval-or-nil form)))
         (and (stringp val) val))
@@ -687,8 +690,8 @@
     (when re
       (relint--check-re-string re name file pos path))))
 
-;; Check a list of regexps.
 (defun relint--check-list (form name file pos path)
+  "Check a list of regexps."
   ;; Don't use mapc -- mustn't crash on improper lists.
   (let ((l (relint--get-list form file pos path)))
     (while (consp l)
@@ -696,8 +699,8 @@
         (relint--check-re-string (car l) name file pos path))
       (setq l (cdr l)))))
 
-;; Check a list of regexps or conses whose car is a regexp.
 (defun relint--check-list-any (form name file pos path)
+  "Check a list of regexps or conses whose car is a regexp."
   (mapc (lambda (elem)
           (cond
            ((stringp elem)
@@ -710,9 +713,8 @@
 (defun relint--check-font-lock-keywords (form name file pos path)
   (relint--check-list-any form name file pos path))
 
-;; Check regexps in `compilation-error-regexp-alist-alist'
-(defun relint--check-compilation-error-regexp-alist-alist
-    (form name file pos path)
+(defun relint--check-compilation-error-regexp-alist-alist (form name
+                                                           file pos path)
   (mapc (lambda (elem)
           (if (cadr elem)
               (relint--check-re-string
@@ -721,8 +723,8 @@
                file pos path)))
         (relint--get-list form file pos path)))
 
-;; Check a variable on `align-mode-rules-list' format
 (defun relint--check-rules-list (form name file pos path)
+  "Check a variable on `align-mode-rules-list' format"
   (mapc (lambda (rule)
           (when (and (consp rule)
                      (symbolp (car rule)))
@@ -734,9 +736,9 @@
                  re (format "%s (%s)" name rule-name) file pos path)))))
         (relint--get-list form file pos path)))
 
-;; List of regexp-generating functions and variables used in EXPR.
-;; EXPANDED is a list of expanded functions, to prevent recursion.
 (defun relint--regexp-generators (expr expanded)
+  "List of regexp-generating functions and variables used in EXPR.
+EXPANDED is a list of expanded functions, to prevent recursion."
   (cond
    ((symbolp expr)
     (and (not (memq expr '(nil t)))
@@ -778,10 +780,10 @@
                       (format "`%s' cannot be used for arguments to `%s'"
                               (car reg-gen) skip-function)))))
 
-;; Look for a format expression that suggests insertion of a regexp
-;; into a character alternative: "[%s]" where the corresponding format
-;; parameter is regexp-generating.
 (defun relint--check-format-mixup (template args file pos path)
+  "Look for a format expression that suggests insertion of a regexp
+into a character alternative: [%s] where the corresponding format
+parameter is regexp-generating."
   (let ((nargs (length args))
         (index 0)
         (start 0))
@@ -814,10 +816,9 @@
           (setq index (1+ index)))
         (setq start next)))))
 
-;; Look for concat args that suggest insertion of a regexp into a
-;; character alternative: "[" followed by a regexp-generating
-;; expression.
 (defun relint--check-concat-mixup (args file pos path)
+  "Look for concat args that suggest insertion of a regexp into a
+character alternative: `[' followed by a regexp-generating expression."
   (let ((index 1))
     (while (consp args)
       (let ((arg (car args)))
@@ -1024,9 +1025,9 @@
       (display-buffer (relint--error-buffer))
       (sit-for 0))))
 
-;; Read top-level forms from the current buffer.
-;; Return a list of (FORM . STARTING-POSITION).
 (defun relint--read-buffer (file)
+  "Read top-level forms from the current buffer.
+Return a list of (FORM . STARTING-POSITION)."
   (goto-char (point-min))
   (let ((pos nil)
         (keep-going t)
