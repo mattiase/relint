@@ -107,8 +107,8 @@ and PATH (reversed list of list indices to follow to target)."
           (goto-char (match-end 0)))
         (let ((skip (car p)))
           (cond
-           ((looking-at (rx (any "'`,")))
-            (forward-char 1)
+           ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+            (goto-char (match-end 0))
             (setq skip (1- skip)))
            ((looking-at (rx "("))
             (forward-char 1)))
