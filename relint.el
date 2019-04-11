@@ -192,15 +192,18 @@ and PATH (reversed list of list indices to follow to target)."
 ;; The names map to a list of the regexp argument indices.
 (defvar relint--regexp-functions)
 
-;; List of possibly safe functions defined in the current file, each
-;; element on the form (FUNCTION ARGS BODY), where ARGS is the lambda list
-;; and BODY its single body expression.
+;; List of functions defined in the current file, each element on the
+;; form (FUNCTION ARGS BODY), where ARGS is the lambda list and BODY
+;; its body expression list.
 (defvar relint--function-defs)
 
-;; List of possibly safe macros defined in the current file, each
-;; element on the form (MACRO ARGS BODY), where ARGS is the lambda list
-;; and BODY its single body expression.
+;; List of macros defined in the current file, each element on the
+;; form (MACRO ARGS BODY), where ARGS is the lambda list and BODY its
+;; body expression list.
 (defvar relint--macro-defs)
+
+;; Alist of alias definitions in the current file.
+(defvar relint--alias-defs)
 
 (defconst relint--safe-functions
   '(cons list append
@@ -327,9 +330,11 @@ into something that can be called safely."
           (let ((def (cdr (assq form relint--function-defs))))
             (if def
                 (let ((formals (car def))
-                      (expr (cadr def)))
-                  (lambda (&rest args)
-                    (relint--apply formals args expr)))
+                      (body (cadr def)))
+                  (if (= (length body) 1)
+                      (lambda (&rest args)
+                        (relint--apply formals args (car body)))
+                    'relint--no-value))
               'relint--no-value)))))
    ((and (consp form) (eq (car form) 'lambda))
     (let ((formals (cadr form))
@@ -392,19 +397,28 @@ not be evaluated safely."
 
    ;; Locally defined functions: try evaluating.
    ((assq (car form) relint--function-defs)
-    (let ((args (mapcar #'relint--eval (cdr form))))
-      (let* ((fn (cdr (assq (car form) relint--function-defs)))
-             (formals (car fn))
-             (expr (cadr fn)))
-        (relint--apply formals args expr))))
+    (let* ((fn (cdr (assq (car form) relint--function-defs)))
+           (formals (car fn))
+           (body (cadr fn)))
+      (if (= (length body) 1)
+          (let ((args (mapcar #'relint--eval (cdr form))))
+            (relint--apply formals args (car body)))
+        (throw 'relint-eval 'no-value))))
 
    ;; Locally defined macros: try expanding.
    ((assq (car form) relint--macro-defs)
     (let ((args (cdr form)))
       (let* ((macro (cdr (assq (car form) relint--macro-defs)))
              (formals (car macro))
-             (expr (cadr macro)))
-        (relint--eval (relint--apply formals args expr)))))
+             (body (cadr macro)))
+        (if (= (length body) 1)
+            (relint--eval (relint--apply formals args (car body)))
+          (throw 'relint-eval 'no-value)))))
+
+   ;; Alias: substitute and try again.
+   ((assq (car form) relint--alias-defs)
+    (relint--eval (cons (cdr (assq (car form) relint--alias-defs))
+                        (cdr form))))
 
    ;; replace-regexp-in-string: wrap the rep argument if it's a function.
    ((eq (car form) 'replace-regexp-in-string)
@@ -764,14 +778,19 @@ EXPANDED is a list of expanded functions, to prevent recursion."
    ((memq (car expr) '(looking-at re-search-forward re-search-backward
                        string-match string-match-p looking-back looking-at-p))
     nil)
-   ((listp (cdr (last expr)))
-    (let ((head (car expr)))
-      (append (mapcan (lambda (x) (relint--regexp-generators x expanded))
-                      (cdr expr))
-              (let ((fun (assq head relint--function-defs)))
-                (and fun (not (memq head expanded))
-                     (relint--regexp-generators
-                      (caddr fun) (cons head expanded)))))))))
+   ((null (cdr (last expr)))
+    (let* ((head (car expr))
+           (alias (assq head relint--alias-defs)))
+      (if alias
+          (relint--regexp-generators (cons (cdr alias) (cdr expr)) expanded)
+        (append (mapcan (lambda (x) (relint--regexp-generators x expanded))
+                        (cdr expr))
+                (let ((fun (assq head relint--function-defs)))
+                  (and fun (not (memq head expanded))
+                       (mapcan (lambda (x)
+                                 (relint--regexp-generators
+                                  x (cons head expanded)))
+                               (caddr fun))))))))))
 
 (defun relint--check-skip-set-provenance (skip-function form file pos path)
   (let ((reg-gen (relint--regexp-generators form nil)))
@@ -850,12 +869,10 @@ character alternative: `[' followed by a regexp-generating expression."
                 (and (consp (car body))
                      (memq (caar body) '(interactive declare))))
        (setq body (cdr body)))          ; Skip doc and declarations.
-     ;; Only consider functions/macros with single-expression bodies.
-     (when (= (length body) 1)
-       (push (list name args (car body))
-             (if (eq (car form) 'defmacro)
-                 relint--macro-defs
-               relint--function-defs)))
+     (push (list name args body)
+           (if (eq (car form) 'defmacro)
+               relint--macro-defs
+             relint--function-defs))
 
      ;; If any argument looks like a regexp, remember it so that it can be
      ;; checked in calls.
@@ -880,6 +897,11 @@ character alternative: `[' followed by a regexp-generating expression."
              (setq args (cdr args))))
          (when indices
            (push (cons name (reverse indices)) relint--regexp-functions)))))
+    (`(defalias ,name-arg ,def-arg . ,_)
+     (let ((name (relint--eval-or-nil name-arg))
+           (def  (relint--eval-or-nil def-arg)))
+       (when (and name def)
+         (push (cons name def) relint--alias-defs))))
     (_
      (let ((index 0))
        (while (consp form)
@@ -993,6 +1015,11 @@ character alternative: `[' followed by a regexp-generating expression."
        (relint--check-font-lock-keywords font-lock-list origin
                                          file pos (cons 4 path))
        (relint--check-list auto-mode-list origin file pos (cons 5 path))))
+    (`(,name . ,args)
+     (let ((alias (assq name relint--alias-defs)))
+       (when alias
+         (relint--check-form-recursively-2
+          (cons (cdr alias) args) file pos path))))
     )
 
   ;; Check calls to remembered functions with regexp arguments.
@@ -1063,6 +1090,7 @@ Return a list of (FORM . STARTING-POSITION)."
           (relint--regexp-functions nil)
           (relint--function-defs nil)
           (relint--macro-defs nil)
+          (relint--alias-defs nil)
           (case-fold-search nil))
       (dolist (form forms)
         (relint--check-form-recursively-1 (car form) file (cdr form) nil))
