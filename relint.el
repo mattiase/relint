@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.6
-;; Package-Requires: ((xr "1.10"))
+;; Version: 1.7
+;; Package-Requires: ((xr "1.11"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
 
@@ -54,6 +54,10 @@
 
 ;;; News:
 
+;; Version 1.7:
+;; - Expanded regexp-generating heuristics
+;; - Some `defalias' are now followed
+;; - All diagnostics are now documented (see README.org)
 ;; Version 1.6:
 ;; - Add `relint-current-buffer'
 ;; - Show relative file names in *relint*
