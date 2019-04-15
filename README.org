@@ -39,20 +39,21 @@ Relint requires the package [[https://elpa.gnu.org/packages/xr.html][xr]]; insta
 
 * What the diagnostics mean
 
-- Unescaped literal `X' ::
+- Unescaped literal 'X' ::
 A special character is taken literally because it occurs in a position
 where it does not need to be backslash-escaped. It is good style to do
 so anyway (assuming that it should occur as a literal character).
 
-- Escaped non-special character `X' ::
+- Escaped non-special character 'X' ::
 A character is backslash-escaped even though this is not necessary and
 does not turn it into a special sequence. Maybe the backslash was in
 error, or should be doubled if a literal backslash was expected.
 
-- Duplicated `\' inside character alternative ::
-Backslashes are not special inside ~[...]~; they have no escaping
-power, and do not need to be escaped in order to include a literal
-backslash.
+- Duplicated 'X' inside character alternative ::
+A character occurs twice inside ~[...]~; this is obviously pointless.
+In particular, backslashes are not special inside ~[...]~; they have
+no escaping power, and do not need to be escaped in order to include a
+literal backslash.
 
 - Repetition of repetition ::
 A repetition construct is applied to an expression that is already
@@ -60,32 +61,31 @@ repeated, such as ~a*+~ (? counts as repetition here). Such
 expressions can be written with a single repetition and often indicate
 a different mistake, such as missing backslashes.
 
-- Reversed range `Y-X' matches nothing ::
-Ranges where the last character precedes the first cover no characters
-at all (not even the endpoints). Usually, they are caused by a
-misplaced hyphen.
+- Reversed range 'Y-X' matches nothing ::
+The last character of a range precedes the first and therefore
+includes no characters at all (not even the endpoints). Most such
+ranges are caused by a misplaced hyphen.
 
-- Character `B' included in range `A-C' ::
-
+- Character 'B' included in range 'A-C' ::
 A range includes a character that also occurs individually. This is
 often caused by a misplaced hyphen.
 
-- Ranges `A-M' and `D-Z' overlap ::
+- Ranges 'A-M' and 'D-Z' overlap ::
 Two ranges have at least one character in common. This is often caused
 by a misplaced hyphen.
 
-- Two-character range `A-B' ::
+- Two-character range 'A-B' ::
 A range only consists of its two endpoints, since they have
 consecutive character codes. This is often caused by a misplaced
 hyphen.
 
-- Duplicated character class `[:class:]' ::
+- Duplicated character class '[:class:]' ::
 A character class occurs twice in a single character alternative or
 skip set.
 
 - Duplicated alternative branch ::
 The same expression occurs in two different branches, like in ~A\|A~.
-This has the same effect of only including it once.
+This has the effect of only including it once.
 
 - Uncounted repetition ::
 The construct ~A\{,\}~ repeats A zero or more times which was probably
@@ -95,12 +95,12 @@ not intended.
 The construct ~A\{\}~ only matches the empty string, which was
 probably not intended.
 
-- Suspect `[' in char alternative ::
+- Suspect '[' in char alternative ::
 This warning indicates badly-placed square brackets in a character
 alternative, as in ~[A[B]C]~. A literal ~]~ must come first (possibly
 after a negating ~^~).
 
-- Literal `-' not first or last ::
+- Literal '-' not first or last ::
 It is good style to put literal hyphens last in character alternatives
 and skip sets, to clearly indicate that it was not intended as part of
 a range.
@@ -112,38 +112,37 @@ escaping backslash.
 
 - Repetition of expression matching an empty string ::
 A repetition operator was applied to a sub-expression that could match
-the empty string; this is not necessarily wrong, but these run very
-slowly on Emacs's regexp engine. Consider rewriting them in a form
-where the repeated expression cannot match the empty string.
+the empty string; this is not necessarily wrong, but such constructs
+run very slowly on Emacs's regexp engine. Consider rewriting them into
+a form where the repeated expression cannot match the empty string.
 
-Example: ~\(?:a*b*\)*~ is very slow but equivalent to the much faster
-~\(?:a\|b\)*~.
+Example: ~\(?:a*b*\)*~ is equivalent to the much faster ~\(?:a\|b\)*~.
 
 Another example: ~\(?:a?b*\)?~ is better written ~a?b*~. 
 
 In general, ~A?~, where ~A~ matches the empty string, can be
 simplified to just ~A~.
 
-- Unnecessarily escaped `X' ::
+- Unnecessarily escaped 'X' ::
 A character is backslash-escaped in a skip set despite not being one
 of the three special characters ~-~ (hyphen), ~\~ (backslash) and ~^~
 (caret). It could be unnecessary, or a backslash that should have been
 escaped.
 
-- Single-element range `X-X' ::
+- Single-element range 'X-X' ::
 A range in a skip set has identical first and last elements. It is
 rather pointless to have it as a range.
 
-- Stray `\' at end of string ::
+- Stray '\\' at end of string ::
 A single backslash at the end of a skip set is always ignored; double it
 if you want a literal backslash to be included.
 
-- Suspect skip set framed in `[...]' ::
+- Suspect skip set framed in '[...]' ::
 A skip set appears to be enclosed in ~[...]~, as if it were a regexp.
 Skip sets are not regexps and do not use brackets. To include the
 brackets themselves, put them next to each other.
 
-- Suspect character class framed in `[...]' ::
+- Suspect character class framed in '[...]' ::
 A skip set contains a character class enclosed in double pairs of
 square brackets, as if it were a regexp. Character classes in skip
 sets are written inside a single pair of square brackets, like
@@ -154,18 +153,22 @@ The empty string is a skip set that does not match anything, and
 is therefore pointless.
 
 - Negated empty set matches anything ::
-The string ~"^"~ is a skip set that matches anything, and is therefore
+The string "^" is a skip set that matches anything, and is therefore
 pointless.
 
-- `X' cannot be used for arguments to `F' ::
+- 'X' cannot be used for arguments to 'F' ::
 An expression that looks like a regexp was given as an argument to
 a function that expects a skip-set.
 
-- Value from `X' cannot be spliced into `[...]' ::
+- Value from 'X' cannot be spliced into '[...]' ::
 An expression that looks like a regexp was used to form a string where
-it is surrounded by square brackets, as if it were building a
-character alternative. Regexps are not valid inside character
-alternatives; they use a different syntax.
+it is surrounded by square brackets, as if it were part of a character
+alternative. Regexps are not valid inside character alternatives; they
+use a different syntax.
+
+If you are just building a string containing a regexp for display
+purposes, consider using other delimiters than square brackets;
+displaying the regexp ~0-9~ as ~[0-9]~ is very misleading.
 
 * Bugs
 
