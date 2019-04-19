@@ -87,6 +87,11 @@ skip set.
 The same expression occurs in two different branches, like in ~A\|A~.
 This has the effect of only including it once.
 
+- Branch matches superset/subset of a previous branch ::
+A branch in an or-expression matches a superset or subset of what
+another branch matches, like in ~[ab]\|a~. This means that one of the
+branches can be eliminated without changing the meaning of the regexp.
+
 - Uncounted repetition ::
 The construct ~A\{,\}~ repeats A zero or more times which was probably
 not intended.
