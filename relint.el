@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.7
-;; Package-Requires: ((xr "1.11"))
+;; Version: 1.8
+;; Package-Requires: ((xr "1.12"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
 
@@ -54,6 +54,9 @@
 
 ;;; News:
 
+;; Version 1.8:
+;; - Updated diagnostics list
+;; - Requires xr 1.12
 ;; Version 1.7:
 ;; - Expanded regexp-generating heuristics
 ;; - Some `defalias' are now followed
