@@ -369,281 +369,284 @@ into something that can be called safely."
 (defun relint--eval (form)
   "Evaluate a form. Throw 'relint-eval 'no-value if something could
 not be evaluated safely."
-  (cond
-   ((memq form '(nil t)) form)
-   ((symbolp form)
-    (and form
-         (let ((binding (assq form relint--variables)))
-           (if binding
-               (relint--eval (cdr binding))
-             (throw 'relint-eval 'no-value)))))
-   ((atom form)
-    form)
-
-   ((eq (car form) 'quote)
-    (if (and (consp (cadr form))
-             (eq (caadr form) '\,))     ; In case we are inside a backquote.
-        (throw 'relint-eval 'no-value)
-      (cadr form)))
-   ((eq (car form) 'function)
-    (cadr form))
-   ((eq (car form) 'lambda)
-    form)
-   ((eq (car form) 'eval-when-compile)
-    (relint--eval (car (last form))))
-
-   ;; Functions considered safe.
-   ((memq (car form) relint--safe-functions)
-    (let ((args (mapcar #'relint--eval (cdr form))))
-      ;; Catching all errors isn't wonderful, but sometimes a global
-      ;; variable argument has an unsuitable default value which is supposed
-      ;; to have been changed at the expression point.
-      (condition-case nil
-          (apply (car form) args)
-        (error (throw 'relint-eval 'no-value)))))
-
-   ;; Locally defined functions: try evaluating.
-   ((assq (car form) relint--function-defs)
-    (let* ((fn (cdr (assq (car form) relint--function-defs)))
-           (formals (car fn))
-           (body (cadr fn)))
-      (if (= (length body) 1)
-          (let ((args (mapcar #'relint--eval (cdr form))))
-            (relint--apply formals args (car body)))
-        (throw 'relint-eval 'no-value))))
-
-   ;; Locally defined macros: try expanding.
-   ((assq (car form) relint--macro-defs)
-    (let ((args (cdr form)))
-      (let* ((macro (cdr (assq (car form) relint--macro-defs)))
-             (formals (car macro))
-             (body (cadr macro)))
-        (if (= (length body) 1)
-            (relint--eval (relint--apply formals args (car body)))
-          (throw 'relint-eval 'no-value)))))
-
-   ;; Alias: substitute and try again.
-   ((assq (car form) relint--alias-defs)
-    (relint--eval (cons (cdr (assq (car form) relint--alias-defs))
-                        (cdr form))))
-
-   ;; replace-regexp-in-string: wrap the rep argument if it's a function.
-   ((eq (car form) 'replace-regexp-in-string)
-    (let ((all-args (mapcar #'relint--eval (cdr form))))
-      (let* ((rep-arg (cadr all-args))
-             (rep (if (stringp rep-arg)
-                      rep-arg
-                    (relint--wrap-function rep-arg)))
-             (args (append (list (car all-args) rep) (cddr all-args))))
-        (condition-case nil
-            (apply (car form) args)
-          (error (throw 'relint-eval 'no-value))))))
-
-   ;; alist-get: wrap the optional fifth argument (testfn).
-   ((eq (car form) 'alist-get)
-    (let* ((all-args (mapcar #'relint--eval (cdr form)))
-           (args (if (< (length all-args) 5)
-                     all-args
-                   (append (butlast all-args (- (length all-args) 4))
-                           (list (relint--wrap-function (nth 4 all-args)))))))
-      (condition-case nil
-          (apply (car form) args)
-        (error (throw 'relint-eval 'no-value)))))
-
-   ((eq (car form) 'if)
-    (let ((condition (relint--eval (cadr form))))
-      (let ((then-part (nth 2 form))
-            (else-tail (nthcdr 3 form)))
-        (cond (condition
-               (relint--eval then-part))
-              ((and else-tail (cdr else-tail))
-               ;; Ignore multi-expression else bodies
-               (throw 'relint-eval 'no-value))
-              (else-tail
-               (relint--eval (car else-tail)))))))
-
-   ((eq (car form) 'and)
-    (if (cdr form)
-        (let ((val (relint--eval (cadr form))))
-          (if (and val (cddr form))
-              (relint--eval (cons 'and (cddr form)))
-            val))
-      t))
-
-   ((eq (car form) 'or)
-    (if (cdr form)
-        (let ((val (relint--eval (cadr form))))
-          (if (and (not val) (cddr form))
-              (relint--eval (cons 'or (cddr form)))
-            val))
-      nil))
-   
-   ((eq (car form) 'cond)
-    (and (cdr form)
-         (let ((clause (cadr form)))
-           (if (consp clause)
-               (let ((val (relint--eval (car clause))))
-                 (if val
-                     (if (cdr clause)
-                         (if (= (length (cdr clause)) 1)
-                             (relint--eval (cadr clause))
-                           ;; Ignore multi-expression clauses
-                           (throw 'relint-eval 'no-value))
-                       val)
-                   (relint--eval (cons 'cond (cddr form)))))
-             ;; Syntax error
-             (throw 'relint-eval 'no-value)))))
-
-   ((memq (car form) '(progn ignore-errors))
-    (cond ((null (cdr form)) nil)
-          ((null (cddr form)) (relint--eval (cadr form)))
-          (t (throw 'relint-eval 'no-value))))
-
-   ((assq (car form) relint--safe-alternatives)
-    (relint--eval (cons (cdr (assq (car form) relint--safe-alternatives))
-                        (cdr form))))
-
-   ((assq (car form) relint--safe-cl-alternatives)
-    (relint--eval (cons (cdr (assq (car form) relint--safe-cl-alternatives))
-                        (cdr form))))
-   
-   ;; delete-dups: Work on a copy of the argument.
-   ((eq (car form) 'delete-dups)
-    (let ((arg (relint--eval (cadr form))))
-      (delete-dups (copy-sequence arg))))
-
-   ;; Safe macros that expand to pure code, and their auxiliary macros.
-   ((memq (car form) '(when unless
-                       \` backquote-list*
-                       pcase pcase-let pcase-let* pcase--flip))
-    (relint--eval (macroexpand form)))
-
-   ;; Functions taking a function as first argument.
-   ((memq (car form) '(apply funcall mapconcat
-                       cl-some cl-every cl-notany cl-notevery))
-    (let ((fun (relint--wrap-function (relint--eval (cadr form))))
-          (args (mapcar #'relint--eval (cddr form))))
-      (condition-case nil
-          (apply (car form) fun args)
-        (error (throw 'relint-eval 'no-value)))))
-          
-   ;; Functions with functions as keyword arguments :test, :test-not, :key
-   ((memq (car form) '(cl-remove-duplicates cl-remove cl-substitute cl-member
-                       cl-find cl-position cl-count cl-mismatch cl-search
-                       cl-union cl-intersection cl-set-difference
-                       cl-set-exclusive-or cl-subsetp
-                       cl-assoc cl-rassoc
-                       cl-sublis))
-    (let ((args (relint--wrap-cl-keyword-args
-                 (mapcar #'relint--eval (cdr form)))))
-      (condition-case nil
-          (apply (car form) args)
-        (error (throw 'relint-eval 'no-value)))))
-    
-   ;; Functions taking a function as first argument,
-   ;; and with functions as keyword arguments :test, :test-not, :key
-   ((memq (car form) '(cl-reduce cl-remove-if cl-remove-if-not
-                       cl-find-if cl-find-if not
-                       cl-position-if cl-position-if-not
-                       cl-count-if cl-count-if-not
-                       cl-member-if cl-member-if-not
-                       cl-assoc-if cl-assoc-if-not
-                       cl-rassoc-if cl-rassoc-if-not))
-    (let ((fun (relint--wrap-function (relint--eval (cadr form))))
-          (args (relint--wrap-cl-keyword-args
-                 (mapcar #'relint--eval (cddr form)))))
-      (condition-case nil
-          (apply (car form) fun args)
-        (error (throw 'relint-eval 'no-value)))))
-
-   ;; mapcar, mapcan: accept missing items in the list argument.
-   ((memq (car form) '(mapcar mapcan))
-    (let* ((fun (relint--wrap-function (relint--eval (cadr form))))
-           (arg (relint--eval-list (caddr form)))
-           (seq (if (listp arg)
-                    (remq nil arg)
-                  arg)))
-      (condition-case nil
-          (funcall (car form) fun seq)
-        (error (throw 'relint-eval 'no-value)))))
-
-   ;; sort: accept missing items in the list argument.
-   ((eq (car form) 'sort)
-    (let* ((arg (relint--eval-list (cadr form)))
-           (seq (cond ((listp arg) (remq nil arg))
-                      ((sequencep arg) (copy-sequence arg))
-                      (arg)))
-           (pred (relint--wrap-function (relint--eval (caddr form)))))
-      (condition-case nil
-          (sort seq pred)
-        (error (throw 'relint-eval 'no-value)))))
-
-   ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
-   ((eq (car form) 'rx)
-    (relint--eval-rx (list (cons 'seq (cdr form)) t)))
-
-   ((eq (car form) 'rx-to-string)
-    (let ((args (mapcar #'relint--eval (cdr form))))
-      (relint--eval-rx args)))
-
-   ;; setq: Ignore its side-effect and just pass on the value (dubious)
-   ((eq (car form) 'setq)
-    (relint--eval (caddr form)))
-
-   ;; let and let*: do not permit multi-expression bodies, since they
-   ;; will contain necessary side-effects that we don't handle.
-   ((eq (car form) 'let)
-    (unless (= (length form) 3)
-      (throw 'relint-eval 'no-value))
-    (let ((bindings
-           (mapcar (lambda (binding)
-                     (if (consp binding)
-                         (cons (car binding)
-                               (list 'quote (relint--eval (cadr binding))))
-                       (cons binding nil)))
-                   (cadr form))))
-      (let ((relint--variables (append bindings relint--variables)))
-        (relint--eval (car (last form))))))
-
-   ((eq (car form) 'let*)
-    (unless (= (length form) 3)
-      (throw 'relint-eval 'no-value))
-    (let ((bindings (cadr form)))
-      (if bindings
-          (let* ((binding (car bindings))
-                 (relint--variables
-                  (cons
-                   (if (consp binding)
-                       (cons (car binding)
-                             (list 'quote (relint--eval (cadr binding))))
-                     (cons binding nil))
-                   relint--variables)))
-            (relint--eval `(let* ,(cdr bindings) ,@(cddr form))))
-        (relint--eval (car (last form))))))
-
-   ;; Loose comma: can occur if we unwittingly stumbled into a backquote
-   ;; form. Just eval the arg and hope for the best.
-   ((eq (car form) '\,)
-    (relint--eval (cadr form)))
-
-   ;; functionp: be optimistic, for determinism
-   ((eq (car form) 'functionp)
-    (let ((arg (relint--eval (cadr form))))
+  (if (atom form)
       (cond
-       ((symbolp arg) (not (memq arg '(nil t))))
-       ((consp arg) (eq (car arg) 'lambda)))))
+       ((booleanp form) form)
+       ((symbolp form)
+        (and form
+             (let ((binding (assq form relint--variables)))
+               (if binding
+                   (relint--eval (cdr binding))
+                 (throw 'relint-eval 'no-value)))))
+       (t form))
+    (let ((head (car form))
+          (body (cdr form)))
+      (cond
+       ((eq head 'quote)
+        (if (and (consp (car body))
+                 (eq (caar body) '\,))     ; In case we are inside a backquote.
+            (throw 'relint-eval 'no-value)
+          (car body)))
+       ((eq head 'function)
+        (car body))
+       ((eq head 'lambda)
+        form)
+       ((eq head 'eval-when-compile)
+        (relint--eval (car (last body))))
 
-   ;; featurep: only handle features that we are reasonably sure about,
-   ;; to avoid depending too much on the particular host Emacs.
-   ((eq (car form) 'featurep)
-    (let ((arg (relint--eval (cadr form))))
-      (cond ((eq arg 'xemacs) nil)
-            ((memq arg '(emacs mule)) t)
-            (t (throw 'relint-eval 'no-value)))))
+       ;; Functions considered safe.
+       ((memq head relint--safe-functions)
+        (let ((args (mapcar #'relint--eval body)))
+          ;; Catching all errors isn't wonderful, but sometimes a global
+          ;; variable argument has an unsuitable default value which is
+          ;; supposed to have been changed at the expression point.
+          (condition-case nil
+              (apply head args)
+            (error (throw 'relint-eval 'no-value)))))
 
-   (t
-    ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
-    (throw 'relint-eval 'no-value))))
+       ;; replace-regexp-in-string: wrap the rep argument if it's a function.
+       ((eq head 'replace-regexp-in-string)
+        (let ((all-args (mapcar #'relint--eval body)))
+          (let* ((rep-arg (cadr all-args))
+                 (rep (if (stringp rep-arg)
+                          rep-arg
+                        (relint--wrap-function rep-arg)))
+                 (args (append (list (car all-args) rep) (cddr all-args))))
+            (condition-case nil
+                (apply head args)
+              (error (throw 'relint-eval 'no-value))))))
+
+       ;; alist-get: wrap the optional fifth argument (testfn).
+       ((eq head 'alist-get)
+        (let* ((all-args (mapcar #'relint--eval body))
+               (args (if (< (length all-args) 5)
+                         all-args
+                       (append (butlast all-args (- (length all-args) 4))
+                               (list (relint--wrap-function
+                                      (nth 4 all-args)))))))
+          (condition-case nil
+              (apply head args)
+            (error (throw 'relint-eval 'no-value)))))
+
+       ((eq head 'if)
+        (let ((condition (relint--eval (car body))))
+          (let ((then-part (nth 1 body))
+                (else-tail (nthcdr 2 body)))
+            (cond (condition
+                   (relint--eval then-part))
+                  ((and else-tail (cdr else-tail))
+                   ;; Ignore multi-expression else bodies
+                   (throw 'relint-eval 'no-value))
+                  (else-tail
+                   (relint--eval (car else-tail)))))))
+
+       ((eq head 'and)
+        (if body
+            (let ((val (relint--eval (car body))))
+              (if (and val (cdr body))
+                  (relint--eval (cons 'and (cdr body)))
+                val))
+          t))
+
+       ((eq head 'or)
+        (if body
+            (let ((val (relint--eval (car body))))
+              (if (and (not val) (cdr body))
+                  (relint--eval (cons 'or (cdr body)))
+                val))
+          nil))
+       
+       ((eq head 'cond)
+        (and body
+             (let ((clause (car body)))
+               (if (consp clause)
+                   (let ((val (relint--eval (car clause))))
+                     (if val
+                         (if (cdr clause)
+                             (if (= (length (cdr clause)) 1)
+                                 (relint--eval (cadr clause))
+                               ;; Ignore multi-expression clauses
+                               (throw 'relint-eval 'no-value))
+                           val)
+                       (relint--eval (cons 'cond (cdr body)))))
+                 ;; Syntax error
+                 (throw 'relint-eval 'no-value)))))
+
+       ((memq head '(progn ignore-errors))
+        (cond ((null body) nil)
+              ((null (cdr body)) (relint--eval (car body)))
+              (t (throw 'relint-eval 'no-value))))
+
+       ;; delete-dups: Work on a copy of the argument.
+       ((eq head 'delete-dups)
+        (let ((arg (relint--eval (car body))))
+          (delete-dups (copy-sequence arg))))
+
+       ;; Safe macros that expand to pure code, and their auxiliary macros.
+       ((memq head '(when unless
+                      \` backquote-list*
+                      pcase pcase-let pcase-let* pcase--flip))
+        (relint--eval (macroexpand form)))
+
+       ;; Functions taking a function as first argument.
+       ((memq head '(apply funcall mapconcat
+                           cl-some cl-every cl-notany cl-notevery))
+        (let ((fun (relint--wrap-function (relint--eval (car body))))
+              (args (mapcar #'relint--eval (cdr body))))
+          (condition-case nil
+              (apply head fun args)
+            (error (throw 'relint-eval 'no-value)))))
+       
+       ;; Functions with functions as keyword arguments :test, :test-not, :key
+       ((memq head '(cl-remove-duplicates cl-remove cl-substitute cl-member
+                     cl-find cl-position cl-count cl-mismatch cl-search
+                     cl-union cl-intersection cl-set-difference
+                     cl-set-exclusive-or cl-subsetp
+                     cl-assoc cl-rassoc
+                     cl-sublis))
+        (let ((args (relint--wrap-cl-keyword-args
+                     (mapcar #'relint--eval body))))
+          (condition-case nil
+              (apply head args)
+            (error (throw 'relint-eval 'no-value)))))
+       
+       ;; Functions taking a function as first argument,
+       ;; and with functions as keyword arguments :test, :test-not, :key
+       ((memq head '(cl-reduce cl-remove-if cl-remove-if-not
+                               cl-find-if cl-find-if not
+                               cl-position-if cl-position-if-not
+                               cl-count-if cl-count-if-not
+                               cl-member-if cl-member-if-not
+                               cl-assoc-if cl-assoc-if-not
+                               cl-rassoc-if cl-rassoc-if-not))
+        (let ((fun (relint--wrap-function (relint--eval (car body))))
+              (args (relint--wrap-cl-keyword-args
+                     (mapcar #'relint--eval (cdr body)))))
+          (condition-case nil
+              (apply head fun args)
+            (error (throw 'relint-eval 'no-value)))))
+
+       ;; mapcar, mapcan: accept missing items in the list argument.
+       ((memq head '(mapcar mapcan))
+        (let* ((fun (relint--wrap-function (relint--eval (car body))))
+               (arg (relint--eval-list (cadr body)))
+               (seq (if (listp arg)
+                        (remq nil arg)
+                      arg)))
+          (condition-case nil
+              (funcall head fun seq)
+            (error (throw 'relint-eval 'no-value)))))
+
+       ;; sort: accept missing items in the list argument.
+       ((eq head 'sort)
+        (let* ((arg (relint--eval-list (car body)))
+               (seq (cond ((listp arg) (remq nil arg))
+                          ((sequencep arg) (copy-sequence arg))
+                          (arg)))
+               (pred (relint--wrap-function (relint--eval (cadr body)))))
+          (condition-case nil
+              (sort seq pred)
+            (error (throw 'relint-eval 'no-value)))))
+
+       ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
+       ((eq head 'rx)
+        (relint--eval-rx (list (cons 'seq body) t)))
+
+       ((eq head 'rx-to-string)
+        (let ((args (mapcar #'relint--eval body)))
+          (relint--eval-rx args)))
+
+       ;; setq: Ignore its side-effect and just pass on the value (dubious)
+       ((eq head 'setq)
+        (relint--eval (cadr body)))
+
+       ;; let and let*: do not permit multi-expression bodies, since they
+       ;; will contain necessary side-effects that we don't handle.
+       ((eq head 'let)
+        (unless (= (length body) 2)
+          (throw 'relint-eval 'no-value))
+        (let ((bindings
+               (mapcar (lambda (binding)
+                         (if (consp binding)
+                             (cons (car binding)
+                                   (list 'quote (relint--eval (cadr binding))))
+                           (cons binding nil)))
+                       (car body))))
+          (let ((relint--variables (append bindings relint--variables)))
+            (relint--eval (car (last body))))))
+
+       ((eq head 'let*)
+        (unless (= (length body) 2)
+          (throw 'relint-eval 'no-value))
+        (let ((bindings (car body)))
+          (if bindings
+              (let* ((binding (car bindings))
+                     (relint--variables
+                      (cons
+                       (if (consp binding)
+                           (cons (car binding)
+                                 (list 'quote (relint--eval (cadr binding))))
+                         (cons binding nil))
+                       relint--variables)))
+                (relint--eval `(let* ,(cdr bindings) ,@(cdr body))))
+            (relint--eval (car (last body))))))
+
+       ;; Loose comma: can occur if we unwittingly stumbled into a backquote
+       ;; form. Just eval the arg and hope for the best.
+       ((eq head '\,)
+        (relint--eval (car body)))
+
+       ;; functionp: be optimistic, for determinism
+       ((eq head 'functionp)
+        (let ((arg (relint--eval (car body))))
+          (cond
+           ((symbolp arg) (not (memq arg '(nil t))))
+           ((consp arg) (eq (car arg) 'lambda)))))
+
+       ;; featurep: only handle features that we are reasonably sure about,
+       ;; to avoid depending too much on the particular host Emacs.
+       ((eq head 'featurep)
+        (let ((arg (relint--eval (car body))))
+          (cond ((eq arg 'xemacs) nil)
+                ((memq arg '(emacs mule)) t)
+                (t (throw 'relint-eval 'no-value)))))
+
+       ;; Locally defined functions: try evaluating.
+       ((assq head relint--function-defs)
+        (let* ((fn (cdr (assq head relint--function-defs)))
+               (formals (car fn))
+               (fn-body (cadr fn)))
+          (if (= (length body) 1)
+              (let ((args (mapcar #'relint--eval body)))
+                (relint--apply formals args (car fn-body)))
+            (throw 'relint-eval 'no-value))))
+
+       ;; Locally defined macros: try expanding.
+       ((assq head relint--macro-defs)
+        (let ((args body))
+          (let* ((macro (cdr (assq head relint--macro-defs)))
+                 (formals (car macro))
+                 (macro-body (cadr macro)))
+            (if (= (length macro-body) 1)
+                (relint--eval (relint--apply formals args (car macro-body)))
+              (throw 'relint-eval 'no-value)))))
+
+       ;; Alias: substitute and try again.
+       ((assq head relint--alias-defs)
+        (relint--eval (cons (cdr (assq head relint--alias-defs))
+                            body)))
+
+       ((assq head relint--safe-alternatives)
+        (relint--eval (cons (cdr (assq head relint--safe-alternatives))
+                            body)))
+
+       ((assq head relint--safe-cl-alternatives)
+        (relint--eval (cons (cdr (assq head relint--safe-cl-alternatives))
+                            body)))
+       
+       (t
+        ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
+        (throw 'relint-eval 'no-value))))))
 
 (defun relint--eval-or-nil (form)
   "Evaluate FORM. Return nil if something prevents it from being evaluated."
@@ -672,10 +675,6 @@ evaluated are nil."
    ((memq (car form) '(list append cons reverse remove remq))
     (apply (car form) (mapcar #'relint--eval-list (cdr form))))
 
-   ((assq (car form) relint--safe-alternatives)
-    (relint--eval-list (cons (cdr (assq (car form) relint--safe-alternatives))
-                             (cdr form))))
-
    ((eq (car form) 'delete-dups)
     (let ((arg (relint--eval-list (cadr form))))
       (delete-dups (copy-sequence arg))))
@@ -685,6 +684,10 @@ evaluated are nil."
 
    ((memq (car form) '(\` backquote-list*))
     (relint--eval-list (macroexpand form)))
+
+   ((assq (car form) relint--safe-alternatives)
+    (relint--eval-list (cons (cdr (assq (car form) relint--safe-alternatives))
+                             (cdr form))))
 
    (t
     (relint--eval-or-nil form))))
