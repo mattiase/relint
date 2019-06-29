@@ -281,27 +281,33 @@ alternatives.")
 "Alist mapping non-safe cl functions to semantically equivalent safe
 alternatives. They may still require wrapping their function arguments.")
 
-(defun relint--rx-safe (form)
-  "Make an `rx' form safe to translate, by mutating (eval ...) subforms."
+(defun relint--rx-safe (rx)
+  "Return RX safe to translate; throw 'relint-eval 'no-value if not."
   (cond
-   ((atom form) t)
-   ((eq (car form) 'eval)
-    (let ((arg (relint--eval (cadr form))))
-      (and (stringp arg)
-           (setcar (cdr form) arg))))    ; Avoid double work.
-   ;; Avoid traversing impure lists like (?A . ?Z).
-   ((memq (car form) '(any in char not-char)) t)
-   (t (not (memq nil (mapcar #'relint--rx-safe (cdr form)))))))
+   ((atom rx) rx)
+   ;; These cannot contain rx subforms.
+   ((memq (car rx) '(any in char not-char not backref
+                     syntax not-syntax category))
+    rx)
+   ;; We ignore the differences in evaluation time between `eval' and
+   ;; `regexp', and just use what environment we have.
+   ((memq (car rx) '(literal eval regexp regex))
+    (let ((arg (relint--eval (cadr rx))))
+      (if (stringp arg)
+          (list (car rx) arg)
+        (throw 'relint-eval 'no-value))))
+   (t (cons (car rx) (mapcar #'relint--rx-safe (cdr rx))))))
 
 (define-error 'relint--eval-error "relint expression evaluation error")
 
 (defun relint--eval-rx (args)
-  "Evaluate an `rx-to-string' expression if safe."
-  (if (relint--rx-safe (car args))
-      (condition-case err
-          (apply #'rx-to-string args)
-        (error (signal 'relint--eval-error (format "rx error: %s" (cadr err)))))
-    (throw 'relint-eval 'no-value)))
+  "Evaluate an `rx-to-string' expression."
+  (let ((safe-args (cons (relint--rx-safe (car args))
+                         (cdr args))))
+    (condition-case err
+        (apply #'rx-to-string safe-args)
+      (error (signal 'relint--eval-error
+                     (format "rx error: %s" (cadr err)))))))
 
 (defun relint--apply (formals actuals expr)
   "Bind FORMALS to ACTUALS and evaluate EXPR."
@@ -548,7 +554,8 @@ not be evaluated safely."
               (sort seq pred)
             (error (throw 'relint-eval 'no-value)))))
 
-       ;; rx, rx-to-string: check for (eval ...) constructs first, then apply.
+       ;; rx, rx-to-string: check for lisp expressions in constructs first,
+       ;; then apply.
        ((eq head 'rx)
         (relint--eval-rx (list (cons 'seq body) t)))
 
