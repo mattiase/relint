@@ -759,7 +759,17 @@ evaluated are nil."
 
 
 (defun relint--check-font-lock-keywords (form name file pos path)
-  (relint--check-list-any form name file pos path))
+  "Check a font-lock-keywords list.  A regexp can be found in an element,
+or in the car of an element."
+  (dolist (elem (relint--get-list form file pos path))
+    (cond
+     ((stringp elem)
+      (relint--check-re-string elem name file pos path))
+     ((and (consp elem)
+           (stringp (car elem)))
+      (let* ((tag (and (symbolp (cdr elem)) (cdr elem)))
+             (ident (if tag (format "%s (%s)" name tag) name)))
+        (relint--check-re-string (car elem) ident file pos path))))))
 
 (defun relint--check-compilation-error-regexp-alist-alist (form name
                                                            file pos path)
