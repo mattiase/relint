@@ -102,6 +102,11 @@
     (let ((inhibit-read-only t))
       (insert string))))
 
+(defun relint--skip-whitespace ()
+  (when (looking-at (rx (1+ (or blank "\n" "\f"
+                                (seq ";" (0+ nonl))))))
+    (goto-char (match-end 0))))
+
 (defun relint--line-col-from-pos-path (pos path)
   "Compute (LINE . COLUMN) from POS (toplevel position)
 and PATH (reversed list of list indices to follow to target)."
@@ -109,23 +114,35 @@ and PATH (reversed list of list indices to follow to target)."
     (goto-char pos)
     (let ((p (reverse path)))
       (while p
-        (when (looking-at (rx (1+ (or blank "\n" "\f"
-                                      (seq ";" (0+ nonl))))))
-          (goto-char (match-end 0)))
+        (relint--skip-whitespace)
         (let ((skip (car p)))
+          ;; Enter next sexp and skip past the `skip' first sexps inside.
           (cond
            ((looking-at (rx (or "'" "#'" "`" "," ",@")))
             (goto-char (match-end 0))
             (setq skip (1- skip)))
            ((looking-at (rx "("))
             (forward-char 1)))
-          (forward-sexp skip)
-          (setq p (cdr p))))
-      (when (looking-at (rx (1+ (or blank "\n" "\f"
-                                    (seq ";" (0+ nonl))))))
-        (goto-char (match-end 0)))
-      (cons (line-number-at-pos (point) t)
-            (1+ (current-column))))))
+          (while (> skip 0)
+            (relint--skip-whitespace)
+            (if (looking-at (rx "."))
+                (progn
+                  (goto-char (match-end 0))
+                  (relint--skip-whitespace)
+                  (cond
+                   ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+                    ;; Sugar after dot represents one sexp.
+                    (goto-char (match-end 0))
+                    (setq skip (1- skip)))
+                   ((looking-at (rx "("))
+                    ;; `. (' represents zero sexps.
+                    (goto-char (match-end 0)))))
+              (forward-sexp)
+              (setq skip (1- skip)))))
+        (setq p (cdr p))))
+    (relint--skip-whitespace)
+    (cons (line-number-at-pos (point) t)
+          (1+ (current-column)))))
 
 (defun relint--output-error (string)
   (if noninteractive
