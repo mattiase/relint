@@ -903,7 +903,7 @@ character alternative: `[' followed by a regexp-generating expression."
 
 (defun relint--check-form-recursively-1 (form file pos path)
   (pcase form
-    (`(,(or `defun `defmacro `defsubst)
+    (`(,(or 'defun 'defmacro 'defsubst)
        ,name ,args . ,body)
 
      ;; Save the function or macro for possible use.
@@ -980,23 +980,23 @@ character alternative: `[' followed by a regexp-generating expression."
 
 (defun relint--check-form-recursively-2 (form file pos path)
   (pcase form
-    (`(,(or `looking-at `re-search-forward `re-search-backward
-            `string-match `string-match-p `looking-back `looking-at-p
-            `replace-regexp-in-string `replace-regexp
-            `query-replace-regexp
-            `posix-looking-at `posix-search-backward `posix-search-forward
-            `posix-string-match
-            `load-history-filename-element
-            `kill-matching-buffers
-            `keep-lines `flush-lines `how-many)
+    (`(,(or 'looking-at 're-search-forward 're-search-backward
+            'string-match 'string-match-p 'looking-back 'looking-at-p
+            'replace-regexp-in-string 'replace-regexp
+            'query-replace-regexp
+            'posix-looking-at 'posix-search-backward 'posix-search-forward
+            'posix-string-match
+            'load-history-filename-element
+            'kill-matching-buffers
+            'keep-lines 'flush-lines 'how-many)
        ,re-arg . ,_)
      (unless (and (symbolp re-arg)
                   (memq re-arg relint--checked-variables))
        (relint--check-re re-arg (format "call to %s" (car form))
                          file pos (cons 1 path))))
-    (`(,(or `split-string `split-string-and-unquote
-            `string-trim-left `string-trim-right `string-trim
-            `directory-files-recursively)
+    (`(,(or 'split-string 'split-string-and-unquote
+            'string-trim-left 'string-trim-right 'string-trim
+            'directory-files-recursively)
        ,_ ,re-arg . ,rest)
      (unless (and (symbolp re-arg)
                   (memq re-arg relint--checked-variables))
@@ -1018,7 +1018,7 @@ character alternative: `[' followed by a regexp-generating expression."
                       (memq trim relint--checked-variables))
            (relint--check-re trim (format "call to %s" (car form))
                              file pos (cons 4 path))))))
-    (`(,(or `skip-chars-forward `skip-chars-backward)
+    (`(,(or 'skip-chars-forward 'skip-chars-backward)
        ,skip-arg . ,_)
      (let ((str (relint--get-string skip-arg file pos path)))
        (when str
@@ -1033,7 +1033,7 @@ character alternative: `[' followed by a regexp-generating expression."
      (let ((template (relint--get-string template-arg file pos path)))
        (when template
          (relint--check-format-mixup template args file pos path))))
-    (`(,(or `defvar `defconst `defcustom)
+    (`(,(or 'defvar 'defconst 'defcustom)
        ,name ,re-arg . ,rest)
      (let ((type (and (eq (car form) 'defcustom)
                           (relint--eval-or-nil (plist-get (cdr rest) :type)))))
