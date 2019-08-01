@@ -757,6 +757,12 @@ evaluated are nil."
            (stringp (car elem)))
       (relint--check-re-string (car elem) name file pos path)))))
 
+(defun relint--check-alist-cdr (form name file pos path)
+  "Check an alist whose cdrs are regexps."
+  (dolist (elem (relint--get-list form file pos path))
+    (when (and (consp elem)
+               (stringp (cdr elem)))
+      (relint--check-re-string (cdr elem) name file pos path))))
 
 (defun relint--check-font-lock-keywords (form name file pos path)
   "Check a font-lock-keywords list.  A regexp can be found in an element,
@@ -978,6 +984,11 @@ character alternative: `[' followed by a regexp-generating expression."
       (setq index (+ index 2))
       (setq args (cddr args)))))
 
+(defsubst relint--defcustom-type-regexp-p (type)
+  (or (eq type 'regexp)
+      (and (consp type)
+           (eq (car type) 'regexp))))
+
 (defun relint--check-form-recursively-2 (form file pos path)
   (pcase form
     (`(,(or 'looking-at 're-search-forward 're-search-backward
@@ -1039,14 +1050,28 @@ character alternative: `[' followed by a regexp-generating expression."
                           (relint--eval-or-nil (plist-get (cdr rest) :type)))))
        (when (symbolp name)
          (cond
-          ((or (eq type 'regexp)
+          ((or (relint--defcustom-type-regexp-p type)
                (string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern") eos)
                                (symbol-name name)))
            (relint--check-re re-arg name file pos (cons 2 path))
            (when (eq (car form) 'defcustom)
              (relint--check-defcustom-re form name file pos path))
            (push name relint--checked-variables))
-          ((or (equal type '(repeat regexp))
+          ((and (consp type)
+                (eq (car type) 'alist)
+                (relint--defcustom-type-regexp-p
+                 (plist-get (cdr type) :key-type)))
+           (relint--check-list-any re-arg name file pos (cons 2 path))
+           (push name relint--checked-variables))
+          ((and (consp type)
+                (eq (car type) 'alist)
+                (relint--defcustom-type-regexp-p
+                 (plist-get (cdr type) :value-type)))
+           (relint--check-alist-cdr re-arg name file pos (cons 2 path))
+           (push name relint--checked-variables))
+          ((or (and (consp type)
+                    (eq (car type) 'repeat)
+                    (relint--defcustom-type-regexp-p (cadr type)))
                (string-match-p (rx (or (or "-regexps" "-regexes")
                                        (seq (or "-regexp" "-re" "-regex")
                                             "-list"))
@@ -1062,12 +1087,9 @@ character alternative: `[' followed by a regexp-generating expression."
            (relint--check-compilation-error-regexp-alist-alist
             re-arg name file pos (cons 2 path))
            (push name relint--checked-variables))
-          ((or (and (consp type)
-                    (eq (car type) 'alist)
-                    (eq (plist-get (cdr type) :key-type) 'regexp))
-               (string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern")
-                                   "-alist" eos)
-                               (symbol-name name)))
+          ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern")
+                               "-alist" eos)
+                           (symbol-name name))
            (relint--check-list-any re-arg name file pos (cons 2 path))
            (push name relint--checked-variables))
           ((string-match-p (rx "-mode-alist" eos)
