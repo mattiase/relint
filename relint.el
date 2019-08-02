@@ -507,13 +507,13 @@ not be evaluated safely."
 
        ;; Safe macros that expand to pure code, and their auxiliary macros.
        ((memq head '(when unless
-                      \` backquote-list*
-                      pcase pcase-let pcase-let* pcase--flip))
+                     \` backquote-list*
+                     pcase pcase-let pcase-let* pcase--flip))
         (relint--eval (macroexpand form)))
 
        ;; Functions taking a function as first argument.
        ((memq head '(apply funcall mapconcat
-                           cl-some cl-every cl-notany cl-notevery))
+                     cl-some cl-every cl-notany cl-notevery))
         (let ((fun (relint--wrap-function (relint--eval (car body))))
               (args (mapcar #'relint--eval (cdr body))))
           (condition-case nil
@@ -536,12 +536,12 @@ not be evaluated safely."
        ;; Functions taking a function as first argument,
        ;; and with functions as keyword arguments :test, :test-not, :key
        ((memq head '(cl-reduce cl-remove-if cl-remove-if-not
-                               cl-find-if cl-find-if not
-                               cl-position-if cl-position-if-not
-                               cl-count-if cl-count-if-not
-                               cl-member-if cl-member-if-not
-                               cl-assoc-if cl-assoc-if-not
-                               cl-rassoc-if cl-rassoc-if-not))
+                     cl-find-if cl-find-if not
+                     cl-position-if cl-position-if-not
+                     cl-count-if cl-count-if-not
+                     cl-member-if cl-member-if-not
+                     cl-assoc-if cl-assoc-if-not
+                     cl-rassoc-if cl-rassoc-if-not))
         (let ((fun (relint--wrap-function (relint--eval (car body))))
               (args (relint--wrap-cl-keyword-args
                      (mapcar #'relint--eval (cdr body)))))
