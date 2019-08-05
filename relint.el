@@ -842,7 +842,8 @@ EXPANDED is a list of expanded functions, to prevent recursion."
                (and def
                     (relint--regexp-generators (cdr def) expanded)))
              (and (or (memq expr '(page-delimiter paragraph-separate
-                                   paragraph-start sentence-end))
+                                   paragraph-start sentence-end
+                                   comment-start-skip comment-end-skip))
                       ;; This is guesswork, but effective.
                       (string-match-p
                        (rx (or (seq bos (or "regexp" "regex"))
