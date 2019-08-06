@@ -100,6 +100,7 @@
           buf))))
 
 (defvar relint--error-count)
+(defvar relint--suppression-count)
 
 (defun relint--add-to-error-buffer (string)
   (with-current-buffer (relint--error-buffer)
@@ -112,42 +113,77 @@
                                 (seq ";" (0+ nonl))))))
     (goto-char (match-end 0))))
 
-(defun relint--line-col-from-pos-path (pos path)
-  "Compute (LINE . COLUMN) from POS (toplevel position)
-and PATH (reversed list of list indices to follow to target)."
-  (save-excursion
-    (goto-char pos)
-    (let ((p (reverse path)))
-      (while p
-        (relint--skip-whitespace)
-        (let ((skip (car p)))
-          ;; Enter next sexp and skip past the `skip' first sexps inside.
-          (cond
-           ((looking-at (rx (or "'" "#'" "`" "," ",@")))
-            (goto-char (match-end 0))
-            (setq skip (1- skip)))
-           ((looking-at (rx "("))
-            (forward-char 1)))
-          (while (> skip 0)
-            (relint--skip-whitespace)
-            (if (looking-at (rx "."))
-                (progn
+(defun relint--go-to-pos-path (toplevel-pos path)
+  "Move point to TOPLEVEL-POS and PATH (reversed list of list
+indices to follow to target)."
+  (goto-char toplevel-pos)
+  (let ((p (reverse path)))
+    (while p
+      (relint--skip-whitespace)
+      (let ((skip (car p)))
+        ;; Enter next sexp and skip past the `skip' first sexps inside.
+        (cond
+         ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+          (goto-char (match-end 0))
+          (setq skip (1- skip)))
+         ((looking-at (rx "("))
+          (forward-char 1)))
+        (while (> skip 0)
+          (relint--skip-whitespace)
+          (if (looking-at (rx "."))
+              (progn
+                (goto-char (match-end 0))
+                (relint--skip-whitespace)
+                (cond
+                 ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+                  ;; Sugar after dot represents one sexp.
                   (goto-char (match-end 0))
-                  (relint--skip-whitespace)
-                  (cond
-                   ((looking-at (rx (or "'" "#'" "`" "," ",@")))
-                    ;; Sugar after dot represents one sexp.
-                    (goto-char (match-end 0))
-                    (setq skip (1- skip)))
-                   ((looking-at (rx "("))
-                    ;; `. (' represents zero sexps.
-                    (goto-char (match-end 0)))))
-              (forward-sexp)
-              (setq skip (1- skip)))))
-        (setq p (cdr p))))
-    (relint--skip-whitespace)
-    (cons (line-number-at-pos (point) t)
+                  (setq skip (1- skip)))
+                 ((looking-at (rx "("))
+                  ;; `. (' represents zero sexps.
+                  (goto-char (match-end 0)))))
+            (forward-sexp)
+            (setq skip (1- skip)))))
+      (setq p (cdr p))))
+  (relint--skip-whitespace))
+
+(defun relint--pos-line-col-from-toplevel-pos-path (toplevel-pos path)
+  "Compute (POINT LINE COLUMN) from TOPLEVEL-POS and PATH (reversed
+list of list indices to follow to target)."
+  (save-excursion
+    (relint--go-to-pos-path toplevel-pos path)
+    (list (point)
+          (line-number-at-pos (point) t)
           (1+ (current-column)))))
+
+(defun relint--suppression (pos message)
+  "Whether there is a suppression for MESSAGE at POS."
+  (save-excursion
+    ;; On a preceding line, look for a comment on the form
+    ;;
+    ;; relint suppression: SUBSTRING
+    ;;
+    ;; where SUBSTRING is a substring of MESSAGE. There can be
+    ;; multiple suppression lines preceding a line of code with
+    ;; several errors.
+    (goto-char pos)
+    (forward-line -1)
+    (let ((matched nil))
+      (while (and
+              (not (setq matched
+                         (and
+                          (looking-at (rx (0+ blank) (1+ ";") (0+ blank)
+                                          "relint suppression:" (0+ blank)
+                                          (group (0+ nonl)
+                                                 (not (any "\n" blank)))))
+                          (let ((substr (match-string 1)))
+                            (string-match-p (regexp-quote substr) message)))))
+              (looking-at (rx bol
+                              (0+ blank) (opt ";" (0+ nonl))
+                              eol))
+              (not (bobp)))
+        (forward-line -1))
+      matched)))
 
 (defun relint--output-error (string)
   (if noninteractive
@@ -155,9 +191,12 @@ and PATH (reversed list of list indices to follow to target)."
     (relint--add-to-error-buffer (concat string "\n"))))
 
 (defun relint--report (file pos path message)
-  (let ((line-col (relint--line-col-from-pos-path pos path)))
-    (relint--output-error
-     (format "%s:%d:%d: %s" file (car line-col) (cdr line-col) message)))
+  (let ((point-line-col (relint--pos-line-col-from-toplevel-pos-path pos path)))
+    (if (relint--suppression (nth 0 point-line-col) message)
+        (setq relint--suppression-count (1+ relint--suppression-count))
+      (relint--output-error
+       (format "%s:%d:%d: %s"
+               file (nth 1 point-line-col) (nth 2 point-line-col) message))))
   (setq relint--error-count (1+ relint--error-count)))
 
 (defun relint--quote-string (str)
@@ -1320,7 +1359,9 @@ Return a list of (FORM . STARTING-POSITION)."
 
 (defun relint--init (target base-dir)
   (if noninteractive
-      (setq relint--error-count 0)
+      (progn
+        (setq relint--error-count 0)
+        (setq relint--suppression-count 0))
     (with-current-buffer (relint--error-buffer)
       (let ((inhibit-read-only t))
         (compilation-forget-errors)
@@ -1329,14 +1370,20 @@ Return a list of (FORM . STARTING-POSITION)."
         (relint--show-errors))
       (setq relint-last-target target)
       (setq default-directory base-dir)
-      (setq relint--error-count 0))))
+      (setq relint--error-count 0)
+      (setq relint--suppression-count 0))))
 
 (defun relint--finish ()
-  (let* ((errors relint--error-count)
-         (msg (format "%d error%s" errors (if (= errors 1) "" "s"))))
+  (let* ((supp relint--suppression-count)
+         (errors (- relint--error-count supp))
+         (msg (format "%d error%s%s"
+                      errors (if (= errors 1) "" "s")
+                      (if (zerop supp)
+                          ""
+                        (format " (%s suppressed)" supp)))))
     (unless noninteractive
-      (relint--add-to-error-buffer (format "\nFinished -- %s found.\n" msg)))
-    (message "relint: %s found." msg)))
+      (relint--add-to-error-buffer (format "\nFinished -- %s.\n" msg)))
+    (message "relint: %s." msg)))
 
 (defun relint-again ()
   "Re-run relint on the same file, directory or buffer as last time."

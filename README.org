@@ -175,6 +175,22 @@ If you are just building a string containing a regexp for display
 purposes, consider using other delimiters than square brackets;
 displaying the regexp ~0-9~ as ~[0-9]~ is very misleading.
 
+* Suppressing diagnostics
+
+While relint has been designed to avoid false positives, there may
+be cases where it emits unfounded complaints. Most of the time, it
+is worth the trouble to change the code to make them go away, but
+sometimes it cannot be done in a reasonable way.
+
+To suppress such diagnostics, add a comment on the form
+
+: ;; relint suppression: MESSAGE
+
+on the line before the code where the error occurred. MESSAGE is a
+substring of the message to be suppressed. Multiple suppression
+comment lines can precede a line of code to eliminate several
+complaints on the same line.
+
 * Bugs
 
 The recognition of regexps is done by ad-hoc rules; the simplistic
