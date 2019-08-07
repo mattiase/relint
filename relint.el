@@ -26,7 +26,8 @@
 ;; Scan elisp files for regexp strings and reports potential errors,
 ;; including deprecated syntax and bad practice.
 ;; Also check the regexp-like skip-set arguments to
-;; `skip-chars-forward' and `skip-chars-backward'.
+;; `skip-chars-forward' and `skip-chars-backward', and syntax codes for
+;; `skip-syntax-forward' and `skip-syntax-backward'.
 ;;
 ;; How to use:
 ;;
