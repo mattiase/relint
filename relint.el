@@ -56,6 +56,8 @@
 ;;; News:
 
 ;; Version 1.9:
+;; - Check arguments to `skip-syntax-forward' and `skip-syntax-backward'
+;; - Add error suppression mechanism
 ;; - Limited tracking of local variables in regexp finding
 ;; - Recognise new variable `literal' and `regexp' rx clauses
 ;; - Detect more regexps in defcustom declarations
