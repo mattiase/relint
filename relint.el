@@ -126,7 +126,7 @@ indices to follow to target)."
       (let ((skip (car p)))
         ;; Enter next sexp and skip past the `skip' first sexps inside.
         (cond
-         ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+         ((looking-at (rx (or "'" "#'" "`" ",@" ",")))
           (goto-char (match-end 0))
           (setq skip (1- skip)))
          ((looking-at (rx "("))
@@ -138,7 +138,7 @@ indices to follow to target)."
                 (goto-char (match-end 0))
                 (relint--skip-whitespace)
                 (cond
-                 ((looking-at (rx (or "'" "#'" "`" "," ",@")))
+                 ((looking-at (rx (or "'" "#'" "`" ",@" ",")))
                   ;; Sugar after dot represents one sexp.
                   (goto-char (match-end 0))
                   (setq skip (1- skip)))
