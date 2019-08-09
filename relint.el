@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.9
+;; Version: 1.10
 ;; Package-Requires: ((xr "1.13"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
@@ -55,9 +55,10 @@
 
 ;;; News:
 
-;; Version 1.9:
+;; Version 1.10:
 ;; - Check arguments to `skip-syntax-forward' and `skip-syntax-backward'
 ;; - Add error suppression mechanism
+;; Version 1.9:
 ;; - Limited tracking of local variables in regexp finding
 ;; - Recognise new variable `literal' and `regexp' rx clauses
 ;; - Detect more regexps in defcustom declarations
