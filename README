@@ -28,7 +28,7 @@ skip-syntax-backward.
   (Options for finding relint and xr need to be added after
   -batch, either -f package-initialize or -L DIR.)
 
-  In the ~*relint*~ buffer, pressing "g" will re-run the same check.
+  In the *relint* buffer, pressing "g" will re-run the same check.
 
 * Installation
 
