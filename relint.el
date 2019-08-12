@@ -1302,10 +1302,22 @@ return (NAME); on syntax error, return nil."
                               (symbol-name name))
               (relint--check-rules-list re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
-             ;; Doc string starting with "regexp"?
+             ;; Doc string starting with "regexp" etc.
              ((and (stringp (car rest))
                    (let ((case-fold-search t))
-                     (string-match-p (rx bos "regexp") (car rest))))
+                     (string-match-p
+                      (rx bos
+                          (opt (or "when" "if")
+                               (* " ")
+                               (or "not" "non")
+                               (* (any "- "))
+                               "nil"
+                               (* (any " ,")))
+                          (opt (or "specify" "specifies")
+                               " ")
+                          (opt (or "a" "the" "this") " ")
+                          (or "regex" "regular expression"))
+                      (car rest))))
               (relint--check-re re-arg name file pos (cons 2 path))
               (when (eq (car form) 'defcustom)
                 (relint--check-defcustom-re form name file pos path))
