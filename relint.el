@@ -1251,7 +1251,7 @@ return (NAME); on syntax error, return nil."
           (when (symbolp name)
             (cond
              ((or (relint--defcustom-type-regexp-p type)
-                  (string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern")
+                  (string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                       eos)
                                   (symbol-name name)))
               (relint--check-re re-arg name file pos (cons 2 path))
@@ -1274,7 +1274,7 @@ return (NAME); on syntax error, return nil."
                        (eq (car type) 'repeat)
                        (relint--defcustom-type-regexp-p (cadr type)))
                   (string-match-p (rx (or (or "-regexps" "-regexes")
-                                          (seq (or "-regexp" "-re" "-regex")
+                                          (seq (or "-regexp" "-regex" "-re")
                                                "-list"))
                                       eos)
                                   (symbol-name name)))
@@ -1289,7 +1289,7 @@ return (NAME); on syntax error, return nil."
               (relint--check-compilation-error-regexp-alist-alist
                re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
-             ((string-match-p (rx (or "-regexp" "-re" "-regex" "-pattern")
+             ((string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                   "-alist" eos)
                               (symbol-name name))
               (relint--check-list-any re-arg name file pos (cons 2 path))
