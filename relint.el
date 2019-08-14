@@ -411,26 +411,13 @@ alternatives. They may still require wrapping their function arguments.")
         (throw 'relint-eval 'no-value))))
    (t (cons (car rx) (mapcar #'relint--rx-safe (cdr rx))))))
 
-(define-error 'relint--eval-error "relint expression evaluation error")
-
 (defun relint--eval-rx (args)
   "Evaluate an `rx-to-string' expression."
   (let ((safe-args (cons (relint--rx-safe (car args))
                          (cdr args))))
-    (condition-case err
+    (condition-case nil
         (apply #'rx-to-string safe-args)
-      (error
-       ;; "Unknown rx form" errors are probably just the result of our
-       ;; evaluation not applying extensions to `rx-constituents' etc;
-       ;; treat them as failed evaluation, not as errors to be signalled.
-       ;; FIXME: Is there any other kind? If not, we can do away with
-       ;; the entire `relint--eval-error' business.
-       (if (and (eq (car err) 'error)
-                (stringp (cadr err))
-                (string-prefix-p "Unknown rx form" (cadr err)))
-           (throw 'relint-eval 'no-value)
-         (signal 'relint--eval-error
-                 (format "rx error: %s" (cadr err))))))))
+      (error (throw 'relint-eval 'no-value)))))
 
 (defun relint--apply (formals actuals expr)
   "Bind FORMALS to ACTUALS and evaluate EXPR."
@@ -835,32 +822,25 @@ evaluated are nil."
    (t
     (relint--eval-or-nil form))))
 
-(defun relint--get-list (form file pos path)
+(defun relint--get-list (form)
   "Convert something to a list, or nil."
-  (condition-case err
-      (let ((val (relint--eval-list form)))
-        (and (consp val) val))
-    (relint--eval-error (relint--report file pos path (cdr err))
-                        nil)))
+  (let ((val (relint--eval-list form)))
+    (and (consp val) val)))
   
-
-(defun relint--get-string (form file pos path)
+(defun relint--get-string (form)
   "Convert something to a string, or nil."
-  (condition-case err
-      (let ((val (relint--eval-or-nil form)))
-        (and (stringp val) val))
-    (relint--eval-error (relint--report file pos path (cdr err))
-                        nil)))
+  (let ((val (relint--eval-or-nil form)))
+    (and (stringp val) val)))
 
 (defun relint--check-re (form name file pos path)
-  (let ((re (relint--get-string form file pos path)))
+  (let ((re (relint--get-string form)))
     (when re
       (relint--check-re-string re name file pos path))))
 
 (defun relint--check-list (form name file pos path)
   "Check a list of regexps."
   ;; Don't use dolist -- mustn't crash on improper lists.
-  (let ((l (relint--get-list form file pos path)))
+  (let ((l (relint--get-list form)))
     (while (consp l)
       (when (stringp (car l))
         (relint--check-re-string (car l) name file pos path))
@@ -868,7 +848,7 @@ evaluated are nil."
 
 (defun relint--check-list-any (form name file pos path)
   "Check a list of regexps or conses whose car is a regexp."
-  (dolist (elem (relint--get-list form file pos path))
+  (dolist (elem (relint--get-list form))
     (cond
      ((stringp elem)
       (relint--check-re-string elem name file pos path))
@@ -878,7 +858,7 @@ evaluated are nil."
 
 (defun relint--check-alist-cdr (form name file pos path)
   "Check an alist whose cdrs are regexps."
-  (dolist (elem (relint--get-list form file pos path))
+  (dolist (elem (relint--get-list form))
     (when (and (consp elem)
                (stringp (cdr elem)))
       (relint--check-re-string (cdr elem) name file pos path))))
@@ -886,7 +866,7 @@ evaluated are nil."
 (defun relint--check-font-lock-keywords (form name file pos path)
   "Check a font-lock-keywords list.  A regexp can be found in an element,
 or in the car of an element."
-  (dolist (elem (relint--get-list form file pos path))
+  (dolist (elem (relint--get-list form))
     (cond
      ((stringp elem)
       (relint--check-re-string elem name file pos path))
@@ -898,7 +878,7 @@ or in the car of an element."
 
 (defun relint--check-compilation-error-regexp-alist-alist (form name
                                                            file pos path)
-  (dolist (elem (relint--get-list form file pos path))
+  (dolist (elem (relint--get-list form))
     (if (cadr elem)
         (relint--check-re-string
          (cadr elem)
@@ -907,12 +887,12 @@ or in the car of an element."
 
 (defun relint--check-rules-list (form name file pos path)
   "Check a variable on `align-mode-rules-list' format"
-  (dolist (rule (relint--get-list form file pos path))
+  (dolist (rule (relint--get-list form))
     (when (and (consp rule)
                (symbolp (car rule)))
       (let* ((rule-name (car rule))
              (re-form (cdr (assq 'regexp (cdr rule))))
-             (re (relint--get-string re-form file pos path)))
+             (re (relint--get-string re-form)))
         (when (stringp re)
           (relint--check-re-string 
            re (format "%s (%s)" name rule-name) file pos path))))))
@@ -1223,7 +1203,7 @@ return (NAME); on syntax error, return nil."
                                 file pos (cons 4 path))))))
        (`(,(or 'skip-chars-forward 'skip-chars-backward)
           ,skip-arg . ,_)
-        (let ((str (relint--get-string skip-arg file pos path)))
+        (let ((str (relint--get-string skip-arg)))
           (when str
             (relint--check-skip-set str (format "call to %s" (car form))
                                     file pos (cons 1 path))))
@@ -1231,7 +1211,7 @@ return (NAME); on syntax error, return nil."
          (car form) skip-arg file pos (cons 1 path))
         )
        (`(,(or 'skip-syntax-forward 'skip-syntax-backward) ,arg . ,_)
-        (let ((str (relint--get-string arg file pos (cons 1 path))))
+        (let ((str (relint--get-string arg)))
           (when str
             (relint--check-syntax-string str (format "call to %s" (car form))
                                          file pos (cons 1 path))))
@@ -1241,7 +1221,7 @@ return (NAME); on syntax error, return nil."
        (`(concat . ,args)
         (relint--check-concat-mixup args file pos path))
        (`(format ,template-arg . ,args)
-        (let ((template (relint--get-string template-arg file pos path)))
+        (let ((template (relint--get-string template-arg)))
           (when template
             (relint--check-format-mixup template args file pos path))))
        (`(,(or 'defvar 'defconst 'defcustom)
