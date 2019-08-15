@@ -207,18 +207,19 @@ skip-syntax-backward.
     purposes, consider using other delimiters than square brackets;
     displaying the regexp 0-9 as [0-9] is very misleading.
 
-  - Invalid char 'X' in syntax string A string argument to
+  - Invalid char 'X' in syntax string
 
-    skip-syntax-forward or skip-syntax-backward contains a character
-    that doesn't indicate a syntax class. Such a string is not a
-    regexp or skip-set, but just a string of syntax codes, possibly
-    with a leading ^ for negation.
+    A string argument to skip-syntax-forward or skip-syntax-backward
+    contains a character that doesn't indicate a syntax class. Such a
+    string is not a regexp or skip-set, but just a string of syntax
+    codes, possibly with a leading ^ for negation.
 
   - Duplicated char 'X' in syntax string
 
     A string argument to skip-syntax-forward or skip-syntax-backward
-    contains a duplicated character, which is pointless and may
-    indicate a mistake.
+    contains a duplicated class, which is pointless and may indicate a
+    mistake. Note that some characters indicate the same syntax class:
+    '.' and ' ' (space) both mean the 'space' class.
 
   - Empty syntax string
 
