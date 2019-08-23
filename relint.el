@@ -1089,7 +1089,7 @@ character alternative: `[' followed by a regexp-generating expression."
       (and (consp type)
            (eq (car type) 'regexp))))
 
-(defun relint--check-and-eval-let-binding (binding file pos path)
+(defun relint--check-and-eval-let-binding (binding mutables file pos path)
   "Check the let-binding BINDING, which is probably (NAME EXPR) or NAME,
 and evaluate EXPR. On success return (NAME VALUE); if evaluation failed,
 return (NAME); on syntax error, return nil."
@@ -1099,7 +1099,7 @@ return (NAME); on syntax error, return nil."
               (symbolp (car binding))
               (consp (cdr binding)))
          (relint--check-form-recursively-2
-          (cadr binding) file pos (cons 1 path))
+          (cadr binding) mutables file pos (cons 1 path))
          (let ((val (catch 'relint-eval
                       (list (relint--eval (cadr binding))))))
            (cons (car binding)
@@ -1107,60 +1107,103 @@ return (NAME); on syntax error, return nil."
                      nil
                    val))))))
 
-(defun relint--check-let* (bindings body file pos path index)
+(defun relint--check-let* (bindings body mutables file pos path index)
   "Check the BINDINGS and BODY of a `let*' form."
   (if bindings
       (let ((b (relint--check-and-eval-let-binding
-                (car bindings) file pos (cons index (cons 1 path)))))
+                (car bindings) mutables file pos (cons index (cons 1 path)))))
         (if b
             (let ((relint--locals (cons b relint--locals)))
-              (relint--check-let* (cdr bindings) body file pos path (1+ index)))
-          (relint--check-let* (cdr bindings) body file pos path (1+ index))))
+              (relint--check-let* (cdr bindings) body (cons (car b) mutables)
+                                  file pos path (1+ index)))
+          (relint--check-let* (cdr bindings) body mutables
+                              file pos path (1+ index))))
     (let ((index 2))
       (while (consp body)
         (when (consp (car body))
           (relint--check-form-recursively-2
-           (car body) file pos (cons index path)))
+           (car body) mutables file pos (cons index path)))
         (setq body (cdr body))
         (setq index (1+ index))))))
 
-(defun relint--check-form-recursively-2 (form file pos path)
+(defun relint--check-form-recursively-2 (form mutables file pos path)
+"Check FORM (at FILE, POS, PATH) recursively.
+MUTABLES is a list of lexical variables in a scope which FORM may mutate
+directly."
   (pcase form
     (`(let ,(and (pred listp) bindings) . ,body)
      (let* ((i 0)
-            (new-bindings
-             (mapcan (lambda (binding)
-                       (let ((b (relint--check-and-eval-let-binding
-                                 binding file pos
-                                 (cons i (cons 1 path)))))
-                         (setq i (1+ i))
-                         (and b (list b))))
-                     bindings)))
+            (bindings-path (cons 1 path))
+            (new-bindings nil)
+            (body-mutables mutables))
+       (while (consp bindings)
+         (let ((b (relint--check-and-eval-let-binding
+                   (car bindings) mutables file pos (cons i bindings-path))))
+           (when b
+             (push b new-bindings)
+             (push (car b) body-mutables))
+           (setq i (1+ i))
+           (setq bindings (cdr bindings))))
        (let ((relint--locals
-              (append (nreverse new-bindings) relint--locals))
+              (append new-bindings relint--locals))
              (index 2))
          (while (consp body)
            (when (consp (car body))
              (relint--check-form-recursively-2
-              (car body) file pos (cons index path)))
+              (car body) body-mutables file pos (cons index path)))
            (setq body (cdr body))
            (setq index (1+ index))))))
     (`(let* ,(and (pred listp) bindings) . ,body)
-     (relint--check-let* bindings body file pos path 0))
+     (relint--check-let* bindings body mutables file pos path 0))
     (`(setq . ,args)
-     ;; Since we don't keep track on program flow (loops, conditions etc),
-     ;; we cannot reassign variables properly. Do the next best: treat every
-     ;; `setq' as an invalidation of the variable value.
+     ;; Only mutate lexical variables in the mutation list, which means
+     ;; that this form will be executed exactly once during their remaining
+     ;; lifetime. Other lexical vars will just be invalidated since we
+     ;; don't know anything about the control flow.
      (let ((i 2))
        (while (and (consp args) (consp (cdr args)) (symbolp (car args)))
-         (relint--check-form-recursively-2
-          (cadr args) file pos (cons i path))
-         ;; Invalidate the variable if it was local; otherwise, ignore.
-         (let ((local (assq (car args) relint--locals)))
-           (when local
-             (setcdr local nil)))
+         (let ((name (car args))
+               (expr (cadr args)))
+           (relint--check-form-recursively-2
+            expr mutables file pos (cons i path))
+           ;; Invalidate the variable if it was local; otherwise, ignore.
+           (let ((local (assq name relint--locals)))
+             (when local
+               (setcdr local
+                       (and (memq name mutables)
+                            (let ((val (catch 'relint-eval
+                                         (list (relint--eval expr)))))
+                              (and (not (eq val 'no-value))
+                                   val)))))))
          (setq args (cddr args))
          (setq i (+ i 2)))))
+    (`(,(or 'if 'and 'or 'when 'unless) ,(and (pred consp) arg1) . ,rest)
+     ;; Only first arg is executed unconditionally.
+     ;; FIXME: A conditional in the tail position of its environment binding
+     ;; has the exactly-once property wrt its body; use it!
+     (relint--check-form-recursively-2 arg1 mutables file pos (cons 1 path))
+     (let ((i 2))
+       (while (consp rest)
+         (when (consp (car rest))
+           (relint--check-form-recursively-2
+            (car rest) nil file pos (cons i path)))
+         (setq rest (cdr rest))
+         (setq i (1+ i)))))
+    (`(,(or 'defun 'defsubst 'defmacro) ,_ ,(and (pred listp) arglist) . ,body)
+     ;; Create local bindings for formal arguments (with unknown values).
+     (let* ((argnames (mapcan (lambda (arg)
+                                (and (symbolp arg)
+                                     (not (memq arg '(&optional &rest)))
+                                     (list arg)))
+                              arglist))
+            (relint--locals (append (mapcar #'list argnames) relint--locals)))
+       (let ((i 3))
+         (while (consp body)
+           (when (consp (car body))
+             (relint--check-form-recursively-2
+              (car body) argnames file pos (cons i path)))
+           (setq body (cdr body))
+           (setq i (1+ i))))))
     (_ 
      (pcase form
        (`(,(or 'looking-at 're-search-forward 're-search-backward
@@ -1313,7 +1356,7 @@ return (NAME); on syntax error, return nil."
         (let ((alias (assq name relint--alias-defs)))
           (when alias
             (relint--check-form-recursively-2
-             (cons (cdr alias) args) file pos path))))
+             (cons (cdr alias) args) mutables file pos path))))
        )
 
      ;; Check calls to remembered functions with regexp arguments.
@@ -1333,11 +1376,16 @@ return (NAME); on syntax error, return nil."
                (setq args (cdr args))
                (setq index (1+ index)))))))
 
+     ;; FIXME: All function applications, and some macros / special forms
+     ;; (prog{1,2,n}, save-excursion...) could be scanned with full
+     ;; mutables since all args are evaluated once.
      (let ((index 0))
        (while (consp form)
          (when (consp (car form))
+           ;; Check subforms with the assumption that nothing can be mutated,
+           ;; since we don't really know what is evaluated when.
            (relint--check-form-recursively-2
-            (car form) file pos (cons index path)))
+            (car form) nil file pos (cons index path)))
          (setq form (cdr form))
          (setq index (1+ index)))))))
 
@@ -1391,7 +1439,7 @@ Return a list of (FORM . STARTING-POSITION)."
       (dolist (form forms)
         (relint--check-form-recursively-1 (car form) file (cdr form) nil))
       (dolist (form forms)
-        (relint--check-form-recursively-2 (car form) file (cdr form) nil)))
+        (relint--check-form-recursively-2 (car form) nil file (cdr form) nil)))
     (when (> relint--error-count errors-before)
       (relint--show-errors))))
 
