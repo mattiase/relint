@@ -152,7 +152,7 @@ indices to follow to target)."
   (relint--skip-whitespace))
 
 (defun relint--pos-line-col-from-toplevel-pos-path (toplevel-pos path)
-  "Compute (POINT LINE COLUMN) from TOPLEVEL-POS and PATH (reversed
+  "Compute (POSITION LINE COLUMN) from TOPLEVEL-POS and PATH (reversed
 list of list indices to follow to target)."
   (save-excursion
     (relint--go-to-pos-path toplevel-pos path)
@@ -195,12 +195,12 @@ list of list indices to follow to target)."
     (relint--add-to-error-buffer (concat string "\n"))))
 
 (defun relint--report (file pos path message)
-  (let ((point-line-col (relint--pos-line-col-from-toplevel-pos-path pos path)))
-    (if (relint--suppression (nth 0 point-line-col) message)
+  (let ((pos-line-col (relint--pos-line-col-from-toplevel-pos-path pos path)))
+    (if (relint--suppression (nth 0 pos-line-col) message)
         (setq relint--suppression-count (1+ relint--suppression-count))
       (relint--output-error
        (format "%s:%d:%d: %s"
-               file (nth 1 point-line-col) (nth 2 point-line-col) message))))
+               file (nth 1 pos-line-col) (nth 2 pos-line-col) message))))
   (setq relint--error-count (1+ relint--error-count)))
 
 (defun relint--escape-string (str escape-printable)
@@ -772,7 +772,7 @@ not be evaluated safely."
                             body)))
        
        (t
-        ;;(relint--add-to-error-buffer (format "eval rule missing: %S\n" form))
+        ;;(relint--output-error (format "eval rule missing: %S" form))
         (throw 'relint-eval 'no-value))))))
 
 (defun relint--eval-or-nil (form)
@@ -1508,7 +1508,7 @@ Return a list of (FORM . STARTING-POSITION)."
 (defun relint--scan-files (files target base-dir)
   (relint--init target base-dir)
   (dolist (file files)
-    ;;(relint--add-to-error-buffer (format "Scanning %s\n" file))
+    ;;(relint--output-error (format "Scanning %s" file))
     (relint--scan-file file base-dir))
   (relint--finish))
 
