@@ -856,6 +856,15 @@ evaluated are nil."
            (stringp (car elem)))
       (relint--check-re-string (car elem) name file pos path)))))
 
+(defun relint--check-alist-any (form name file pos path)
+  "Check an alist whose cars or cdrs may be regexps."
+  (dolist (elem (relint--get-list form))
+    (when (consp elem)
+      (when (stringp (car elem))
+        (relint--check-re-string (car elem) name file pos path))
+      (when (stringp (cdr elem))
+        (relint--check-re-string (cdr elem) name file pos path)))))
+
 (defun relint--check-alist-cdr (form name file pos path)
   "Check an alist whose cdrs are regexps."
   (dolist (elem (relint--get-list form))
@@ -1315,7 +1324,7 @@ directly."
              ((string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                   "-alist" eos)
                               (symbol-name name))
-              (relint--check-list-any re-arg name file pos (cons 2 path))
+              (relint--check-alist-any re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
              ((string-match-p (rx "-mode-alist" eos)
                               (symbol-name name))
