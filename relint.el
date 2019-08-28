@@ -339,7 +339,7 @@ list of list indices to follow to target)."
     substring
     length safe-length
     symbol-name
-    null not
+    null not xor
     eq eql equal
     string-equal string= string< string-lessp string> string-greaterp
     char-equal string-match-p
@@ -363,7 +363,8 @@ list of list indices to follow to target)."
     consp atom stringp symbolp listp nlistp booleanp
     integerp numberp natnump fixnump bignump characterp zerop
     sequencep vectorp arrayp
-    + - * / % mod 1+ 1- max min < <= = > >= /= abs)
+    + - * / % mod 1+ 1- max min < <= = > >= /= abs
+    ash lsh logand logior logxor)
   "Functions that are safe to call during evaluation.
 Except for altering the match state, these are side-effect-free
 and reasonably pure (some depend on variables in fairly uninteresting ways,
