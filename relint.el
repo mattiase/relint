@@ -405,7 +405,14 @@ alternatives. They may still require wrapping their function arguments.")
     rx)
    ;; We ignore the differences in evaluation time between `eval' and
    ;; `regexp', and just use what environment we have.
-   ((memq (car rx) '(literal eval regexp regex))
+   ((eq (car rx) 'eval)
+    (let ((arg (relint--eval (cadr rx))))
+      ;; For safety, make sure the result isn't another evaluating form.
+      (when (and (consp arg)
+                 (memq (car arg) '(literal eval regexp regex)))
+        (throw 'relint-eval 'no-value))
+      arg))
+   ((memq (car rx) '(literal regexp regex))
     (let ((arg (relint--eval (cadr rx))))
       (if (stringp arg)
           (list (car rx) arg)
