@@ -744,7 +744,7 @@ not be evaluated safely."
         (let* ((fn (cdr (assq head relint--function-defs)))
                (formals (car fn))
                (fn-body (cadr fn)))
-          (if (= (length body) 1)
+          (if (= (length fn-body) 1)
               (let ((args (mapcar #'relint--eval body)))
                 (relint--apply formals args (car fn-body)))
             (throw 'relint-eval 'no-value))))
