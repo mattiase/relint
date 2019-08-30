@@ -974,22 +974,26 @@ parameter is regexp-generating."
         (start 0))
     (while (and (< index nargs)
                 (string-match (rx
-                                ;; An unescaped [, and some leading chars
-                               (opt (or bos (not (any "\\")))
-                                    (0+ "\\\\")
-                                    (group "[")
-                                    (0+ (not (any "]"))))
-                               ;; Any %-sequence
                                "%"
                                (opt (1+ digit) "$")
                                (0+ digit)
                                (opt "." (0+ digit))
                                (group (any "%sdioxXefgcS")))
                               template start))
-      (let ((bracket (match-beginning 1))
-            (type (string-to-char (match-string 2 template)))
+      (let ((percent (match-beginning 0))
+            (type (string-to-char (match-string 1 template)))
             (next (match-end 0)))
-        (when (and bracket (eq type ?s))
+        (when (and (eq type ?s)
+                   ;; Find preceding `[' before %s
+                   (string-match-p
+                    (rx
+                     bos
+                     (* (or (not (any "\\" "["))
+                            (seq "\\" anything)))
+                     "["
+                     (* (not (any "]")))
+                     eos)
+                    (substring template start percent)))
           (let ((reg-gen (relint--regexp-generators (nth index args) nil)))
             (when reg-gen
               (relint--report
