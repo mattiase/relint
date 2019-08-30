@@ -502,6 +502,7 @@ not be evaluated safely."
   (if (atom form)
       (cond
        ((booleanp form) form)
+       ((keywordp form) form)
        ((symbolp form)
         (let ((local (assq form relint--locals)))
           (if local
