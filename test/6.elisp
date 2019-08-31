@@ -1,0 +1,46 @@
+;;; Relint test file 6          -*- emacs-lisp -*-
+
+;; Test mixup of regexp and character alternative
+(defun myrefun (things)
+  (if (listp things)
+      (regexp-opt things)
+    things))
+
+(defun test-mixup (x y z)
+  (list
+   (concat "a*[^" some-regexp "]")
+   (concat stuff "[" (regexp-quote x) "]" stuff)
+   (concat "[" (myrefun y) "]")
+   (concat "[" (rx ?a "b" nonl) "]")
+   (concat "[" (rx-to-string z) "]")
+   (format "^%s[%s]*%s$" stuff some-regex stuff)
+   (format "[%s]" (regexp-quote x))
+   (format "[%s]" (myrefun y))
+   (format "[%s]" (rx ?a "b" nonl))
+   (format "[%s]" (rx-to-string z))))
+
+;; Test skip-chars
+(defun test-skip-chars (x y z)
+  (skip-chars-forward "[a-z]")
+  (skip-chars-backward "aa")
+  (skip-chars-forward some-re)
+  (skip-chars-backward (regexp-quote x))
+  (skip-chars-forward (myrefun y))
+  (skip-chars-backward (rx "abc"))
+  (skip-chars-forward (rx-to-string z)))
+
+;; Test skip-syntax
+(defun test-skip-syntax (x y z)
+  (skip-syntax-forward "\\s-")
+  (skip-syntax-backward "- ")
+  (skip-syntax-forward some-re)
+  (skip-syntax-backward (regexp-quote x))
+  (skip-syntax-forward (myrefun y))
+  (skip-syntax-backward (rx "w-"))
+  (skip-syntax-forward (rx-to-string z)))
+
+;; Test suppression
+(defun test-suppression ()
+  ;; relint suppression: Unescaped literal `$'
+  ;; relint suppression: Duplicated `a'
+  (looking-at "$[aa]"))

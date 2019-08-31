@@ -1,0 +1,27 @@
+;;; Relint test file 5          -*- emacs-lisp -*-
+
+;; Test let bindings
+(defun test-let-inside (x y)
+  (looking-at (let ((x "a")
+                    (y "b"))
+                (let* ((y "^")
+                       (z (concat x y)))
+                  z))))
+
+(defun test-let-outside (x y)
+  (let ((x "A")
+        (y "B"))
+    (let* ((y "^")
+           (z (concat x y)))
+      (looking-at z))))
+
+;; Test setq
+(defun test-setq-inside (x)
+  (looking-at (setq x "[AA]")))
+
+(defun test-setq-outside (x c)
+  (setq x "[")
+  (let ((y "B")
+        (z "M"))
+    (setq z "B")
+    (looking-at (concat x y z "]"))))

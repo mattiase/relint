@@ -1,0 +1,12 @@
+5.elisp:5:15: In call to looking-at: Unescaped literal `^' (pos 1)
+  "a^"
+   .^
+5.elisp:16:19: In call to looking-at: Unescaped literal `^' (pos 1)
+  "A^"
+   .^
+5.elisp:20:15: In call to looking-at: Duplicated `A' inside character alternative (pos 2)
+  "[AA]"
+   ..^
+5.elisp:27:17: In call to looking-at: Duplicated `B' inside character alternative (pos 2)
+  "[BB]"
+   ..^

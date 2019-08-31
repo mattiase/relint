@@ -1,0 +1,142 @@
+1.elisp:6:22: In bad-regexp: Duplicated `A' inside character alternative (pos 2)
+  "[AA]"
+   ..^
+1.elisp:7:21: In bad-regex: Duplicated `A' inside character alternative (pos 2)
+  "[AA]"
+   ..^
+1.elisp:8:18: In bad-re: Duplicated `A' inside character alternative (pos 2)
+  "[AA]"
+   ..^
+1.elisp:9:23: In bad-pattern: Duplicated `A' inside character alternative (pos 2)
+  "[AA]"
+   ..^
+1.elisp:11:23: In bad-regexps: Unescaped literal `+' (pos 0)
+  "+a"
+   ^
+1.elisp:12:23: In bad-regexes: Unescaped literal `+' (pos 0)
+  "+b"
+   ^
+1.elisp:13:27: In bad-regexp-list: Unescaped literal `+' (pos 0)
+  "+c"
+   ^
+1.elisp:14:26: In bad-regex-list: Unescaped literal `+' (pos 0)
+  "+d"
+   ^
+1.elisp:15:23: In bad-re-list: Unescaped literal `+' (pos 0)
+  "+e"
+   ^
+1.elisp:17:28: In bad-regexp-alist: Unescaped literal `*' (pos 0)
+  "**"
+   ^
+1.elisp:17:28: In bad-regexp-alist: Unescaped literal `?' (pos 0)
+  "??"
+   ^
+1.elisp:17:28: In bad-regexp-alist: Unescaped literal `^' (pos 1)
+  ".^"
+   .^
+1.elisp:17:28: In bad-regexp-alist: Unescaped literal `$' (pos 0)
+  "$."
+   ^
+1.elisp:18:27: In bad-regex-alist: Unescaped literal `*' (pos 0)
+  "**"
+   ^
+1.elisp:18:27: In bad-regex-alist: Unescaped literal `?' (pos 0)
+  "??"
+   ^
+1.elisp:18:27: In bad-regex-alist: Unescaped literal `^' (pos 1)
+  ".^"
+   .^
+1.elisp:18:27: In bad-regex-alist: Unescaped literal `$' (pos 0)
+  "$."
+   ^
+1.elisp:19:24: In bad-re-alist: Unescaped literal `*' (pos 0)
+  "**"
+   ^
+1.elisp:19:24: In bad-re-alist: Unescaped literal `?' (pos 0)
+  "??"
+   ^
+1.elisp:19:24: In bad-re-alist: Unescaped literal `^' (pos 1)
+  ".^"
+   .^
+1.elisp:19:24: In bad-re-alist: Unescaped literal `$' (pos 0)
+  "$."
+   ^
+1.elisp:20:29: In bad-pattern-alist: Unescaped literal `*' (pos 0)
+  "**"
+   ^
+1.elisp:20:29: In bad-pattern-alist: Unescaped literal `?' (pos 0)
+  "??"
+   ^
+1.elisp:20:29: In bad-pattern-alist: Unescaped literal `^' (pos 1)
+  ".^"
+   .^
+1.elisp:20:29: In bad-pattern-alist: Unescaped literal `$' (pos 0)
+  "$."
+   ^
+1.elisp:22:26: In bad-mode-alist: Unescaped literal `?' (pos 0)
+  "??"
+   ^
+1.elisp:22:26: In bad-mode-alist: Unescaped literal `^' (pos 1)
+  ".^"
+   .^
+1.elisp:24:26: In bad-rules-list (eins): Unescaped literal `$' (pos 0)
+  "$$"
+   ^
+1.elisp:24:26: In bad-rules-list (zwei): Reversed range `a-Z' matches nothing (pos 1)
+  "[a-Z]"
+   .^
+1.elisp:31:34: In bad-font-lock-keywords (tag): Duplicated `x' inside character alternative (pos 2)
+  "[xx]"
+   ..^
+1.elisp:31:34: In bad-font-lock-keywords: Duplicated `y' inside character alternative (pos 2)
+  "[yy]"
+   ..^
+1.elisp:34:21: In bad-var-1: Unescaped literal `^' (pos 1)
+  "a^"
+   .^
+1.elisp:36:19: In bad-var-2: Duplicated `z' inside character alternative (pos 2)
+  "[zz]"
+   ..^
+1.elisp:38:22: In bad-var-3: Reversed range `o-O' matches nothing (pos 1)
+  "[o-O]"
+   .^
+1.elisp:44:25: In bad-custom-1: Duplicated `n' inside character alternative (pos 2)
+  "[nn]"
+   ..^
+1.elisp:48:25: In bad-custom-2: Duplicated `s' inside character alternative (pos 2)
+  "[ss]"
+   ..^
+1.elisp:55:9: In bad-custom-3-regexp: Unescaped literal `+' (pos 0)
+  "+a+"
+   ^
+1.elisp:55:9: In bad-custom-3-regexp: Unescaped literal `*' (pos 0)
+  "*b*"
+   ^
+1.elisp:55:9: In bad-custom-3-regexp: Unescaped literal `^' (pos 2)
+  "^c^"
+   ..^
+1.elisp:62:12: In bad-custom-4-regexp: Unescaped literal `+' (pos 0)
+  "+b"
+   ^
+1.elisp:63:25: In bad-custom-5: Unescaped literal `^' (pos 2)
+  "^x^"
+   ..^
+1.elisp:67:25: In bad-custom-6: Error: No character class ‘[:bah:]’: "[[:bah:]]"
+1.elisp:71:25: In bad-custom-7: Duplicated `a' inside character alternative (pos 2)
+  "[aa]"
+   ..^
+1.elisp:78:3: In compilation-error-regexp-alist-alist (aa): Unescaped literal `^' (pos 1)
+  "a^a"
+   .^
+1.elisp:78:3: In compilation-error-regexp-alist-alist (bb): Unescaped literal `$' (pos 1)
+  "b$b"
+   .^
+1.elisp:84:3: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
+  "1^"
+   .^
+1.elisp:84:3: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
+  "2^"
+   .^
+1.elisp:86:3: In define-generic-mode my-mode: Repetition of repetition (pos 2)
+  "b++"
+   ..^
