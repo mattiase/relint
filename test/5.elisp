@@ -25,3 +25,17 @@
         (z "M"))
     (setq z "B")
     (looking-at (concat x y z "]"))))
+
+(defun test-push (x)
+  (let ((x (list "a")))
+    (push "+" x)
+    (looking-at (string-join x))))
+
+(defun test-setq-defun (x)
+  (setq x "[CC]")
+  (looking-at x))
+
+(defun test-setq-lambda ()
+  (lambda (y)
+    (setq y "[DD]")
+    (looking-at y)))

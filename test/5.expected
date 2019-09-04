@@ -10,3 +10,12 @@
 5.elisp:27:17: In call to looking-at: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
+5.elisp:32:17: In call to looking-at: Unescaped literal `+' (pos 0)
+  "+a"
+   ^
+5.elisp:36:15: In call to looking-at: Duplicated `C' inside character alternative (pos 2)
+  "[CC]"
+   ..^
+5.elisp:41:17: In call to looking-at: Duplicated `D' inside character alternative (pos 2)
+  "[DD]"
+   ..^

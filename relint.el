@@ -1201,6 +1201,20 @@ directly."
                                    val)))))))
          (setq args (cddr args))
          (setq i (+ i 2)))))
+    (`(push ,expr ,(and (pred symbolp) name))
+     ;; Treat (push EXPR NAME) as (setq NAME (cons EXPR NAME)).
+     (relint--check-form-recursively-2 expr mutables file pos (cons 1 path))
+     (let ((local (assq name relint--locals)))
+       (when local
+         (setcdr local
+                 (let ((old-val (cdr local)))
+                   (and old-val
+                        (memq name mutables)
+                        (let ((val (catch 'relint-eval
+                                     (list (cons (relint--eval expr)
+                                                 (car old-val))))))
+                          (and (consp val)
+                               val))))))))
     (`(,(or 'if 'and 'or 'when 'unless) ,(and (pred consp) arg1) . ,rest)
      ;; Only first arg is executed unconditionally.
      ;; FIXME: A conditional in the tail position of its environment binding
@@ -1222,6 +1236,21 @@ directly."
                               arglist))
             (relint--locals (append (mapcar #'list argnames) relint--locals)))
        (let ((i 3))
+         (while (consp body)
+           (when (consp (car body))
+             (relint--check-form-recursively-2
+              (car body) argnames file pos (cons i path)))
+           (setq body (cdr body))
+           (setq i (1+ i))))))
+    (`(lambda ,(and (pred listp) arglist) . ,body)
+     ;; Create local bindings for formal arguments (with unknown values).
+     (let* ((argnames (mapcan (lambda (arg)
+                                (and (symbolp arg)
+                                     (not (memq arg '(&optional &rest)))
+                                     (list arg)))
+                              arglist))
+            (relint--locals (append (mapcar #'list argnames) relint--locals)))
+       (let ((i 2))
          (while (consp body)
            (when (consp (car body))
              (relint--check-form-recursively-2
