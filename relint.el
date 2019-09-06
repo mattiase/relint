@@ -941,7 +941,8 @@ EXPANDED is a list of expanded functions, to prevent recursion."
    ((memq (car expr) '(regexp-quote regexp-opt regexp-opt-charset
                        rx rx-to-string wildcard-to-regexp read-regexp
                        char-fold-to-regexp find-tag-default-as-regexp
-                       find-tag-default-as-symbol-regexp sentence-end))
+                       find-tag-default-as-symbol-regexp sentence-end
+                       word-search-regexp))
     (list (car expr)))
    ((memq (car expr) '(looking-at re-search-forward re-search-backward
                        string-match string-match-p looking-back looking-at-p))
