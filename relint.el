@@ -1037,11 +1037,14 @@ character alternative: `[' followed by a regexp-generating expression."
     (`(,(or 'defun 'defmacro 'defsubst)
        ,name ,args . ,body)
 
+     ;; Skip doc string.
+     (when (stringp (car body))
+       (setq body (cdr body)))
+     ;; Skip declarations.
+     (while (and (consp (car body))
+                 (memq (caar body) '(interactive declare)))
+       (setq body (cdr body)))
      ;; Save the function or macro for possible use.
-     (while (or (stringp (car body))
-                (and (consp (car body))
-                     (memq (caar body) '(interactive declare))))
-       (setq body (cdr body)))          ; Skip doc and declarations.
      (push (list name args body)
            (if (eq (car form) 'defmacro)
                relint--macro-defs
