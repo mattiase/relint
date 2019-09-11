@@ -17,7 +17,12 @@
 
 ;; Test setq
 (defun test-setq-inside (x)
-  (looking-at (setq x "[AA]")))
+  (looking-at
+   (progn
+     (let ((y "A")
+           (z "B"))
+       (setq z "A")
+       (concat "[" y z "]")))))
 
 (defun test-setq-outside (x c)
   (setq x "[")
@@ -31,6 +36,11 @@
     (push "+" x)
     (looking-at (string-join x))))
 
+(defun test-pop (x)
+  (let ((x (list "a" "b" "^")))
+    (pop x)
+    (looking-at (string-join x))))
+
 (defun test-setq-defun (x)
   (setq x "[CC]")
   (looking-at x))
@@ -39,3 +49,21 @@
   (lambda (y)
     (setq y "[DD]")
     (looking-at y)))
+
+(defun f1 (x)
+  (let ((y "D"))
+    (setq x "E" y "E")
+    (concat x y)))
+
+(defun test-setq-inside-fun ()
+  (looking-at (concat "[" (f1 "C") "]")))
+
+(defun test-push-inside ()
+  (looking-at (let ((x (list "b")))
+                (push "*" x)
+                (string-join x))))
+
+(defun test-pop-inside ()
+  (looking-at (let* ((x (list "u" "+" "v"))
+                     (y (pop x)))
+                (string-join (append x (list y))))))

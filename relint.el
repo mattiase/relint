@@ -327,6 +327,9 @@ list of list indices to follow to target)."
 ;; exists but the value is unknown.
 (defvar relint--locals)
 
+(defvar relint--eval-mutables nil
+  "List of local variables mutable in the current evaluation context.")
+
 (defconst relint--safe-functions
   '(cons list append
     concat
@@ -429,8 +432,8 @@ alternatives. They may still require wrapping their function arguments.")
         (apply #'rx-to-string safe-args)
       (error (throw 'relint-eval 'no-value)))))
 
-(defun relint--apply (formals actuals expr)
-  "Bind FORMALS to ACTUALS and evaluate EXPR."
+(defun relint--apply (formals actuals body)
+  "Bind FORMALS to ACTUALS and evaluate BODY."
   (let ((bindings nil))
     (while formals
       (cond
@@ -445,8 +448,10 @@ alternatives. They may still require wrapping their function arguments.")
         (setq actuals (cdr actuals)))))
     ;; This results in dynamic binding, but that doesn't matter for our
     ;; purposes.
-    (let ((relint--locals (append bindings relint--locals)))
-      (relint--eval expr))))
+    (let ((relint--locals (append bindings relint--locals))
+          (relint--eval-mutables (append (mapcar #'car bindings)
+                                         relint--eval-mutables)))
+      (relint--eval-body body))))
 
 (defun relint--no-value (&rest _)
   "A function that fails when called."
@@ -464,18 +469,14 @@ into something that can be called safely."
             (if def
                 (let ((formals (car def))
                       (body (cadr def)))
-                  (if (= (length body) 1)
-                      (lambda (&rest args)
-                        (relint--apply formals args (car body)))
-                    'relint--no-value))
+                  (lambda (&rest args)
+                    (relint--apply formals args body)))
               'relint--no-value)))))
    ((and (consp form) (eq (car form) 'lambda))
     (let ((formals (cadr form))
           (body (cddr form)))
-      (if (= (length body) 1)
-          (lambda (&rest args)
-            (relint--apply formals args (car body)))
-        'relint--no-value)))
+      (lambda (&rest args)
+        (relint--apply formals args body))))
    (t 'relint--no-value)))
 
 (defun relint--wrap-cl-keyword-args (args)
@@ -497,6 +498,20 @@ into something that can be called safely."
   (let ((val (catch 'relint-eval
                (list (relint--eval form)))))
     (if (eq val 'no-value) nil val)))
+
+(defun relint--eval-body (body)
+  "Evaluate a list of forms; return result of last form."
+  (if (consp body)
+      (progn
+        (while (consp (cdr body))
+          (relint--eval (car body))
+          (setq body (cdr body)))
+        (if (cdr body)
+            (throw 'relint-eval 'no-value)
+          (relint--eval (car body))))
+    (if body
+        (throw 'relint-eval 'no-value)
+      nil)))
 
 (defun relint--eval (form)
   "Evaluate a form. Throw 'relint-eval 'no-value if something could
@@ -528,8 +543,6 @@ not be evaluated safely."
         (car body))
        ((eq head 'lambda)
         form)
-       ((eq head 'eval-when-compile)
-        (relint--eval (car (last body))))
 
        ;; Functions considered safe.
        ((memq head relint--safe-functions)
@@ -571,11 +584,8 @@ not be evaluated safely."
                 (else-tail (nthcdr 2 body)))
             (cond (condition
                    (relint--eval then-part))
-                  ((and else-tail (cdr else-tail))
-                   ;; Ignore multi-expression else bodies
-                   (throw 'relint-eval 'no-value))
                   (else-tail
-                   (relint--eval (car else-tail)))))))
+                   (relint--eval-body else-tail))))))
 
        ((eq head 'and)
         (if body
@@ -600,19 +610,14 @@ not be evaluated safely."
                    (let ((val (relint--eval (car clause))))
                      (if val
                          (if (cdr clause)
-                             (if (= (length (cdr clause)) 1)
-                                 (relint--eval (cadr clause))
-                               ;; Ignore multi-expression clauses
-                               (throw 'relint-eval 'no-value))
+                             (relint--eval-body (cdr clause))
                            val)
                        (relint--eval (cons 'cond (cdr body)))))
                  ;; Syntax error
                  (throw 'relint-eval 'no-value)))))
 
-       ((memq head '(progn ignore-errors))
-        (cond ((null body) nil)
-              ((null (cdr body)) (relint--eval (car body)))
-              (t (throw 'relint-eval 'no-value))))
+       ((memq head '(progn ignore-errors eval-when-compile eval-and-compile))
+        (relint--eval-body body))
 
        ;; delete-dups: Work on a copy of the argument.
        ((eq head 'delete-dups)
@@ -694,15 +699,49 @@ not be evaluated safely."
         (let ((args (mapcar #'relint--eval body)))
           (relint--eval-rx args)))
 
-       ;; setq: Ignore its side-effect and just pass on the value (dubious)
+       ;; setq: set local variables if permitted.
        ((eq head 'setq)
-        (relint--eval (cadr body)))
+        (if (and (symbolp (car body)) (consp (cdr body)))
+            (let* ((name (car body))
+                   ;; FIXME: Consider using relint--eval-to-binding instead,
+                   ;; tolerating unevaluatable expressions.
+                   (val (relint--eval (cadr body))))
+              ;; Somewhat dubiously, we ignore the side-effect for
+              ;; non-local (or local non-mutable) variables and hope
+              ;; it doesn't matter.
+              (when (memq name relint--eval-mutables)
+                (let ((local (assq name relint--locals)))
+                  (setcdr local (list val))))
+              (if (cddr body)
+                  (relint--eval (cons 'setq (cddr body)))
+                val))
+          (throw 'relint-eval 'no-value)))  ; Syntax error.
+
+       ((eq head 'push)
+        (let* ((expr (car body))
+               (name (cadr body))
+               (local (assq name relint--locals)))
+          (if (and (memq name relint--eval-mutables)
+                   (cdr local))
+              (let ((new-val (cons (relint--eval expr) (cadr local))))
+                (setcdr local (list new-val))
+                new-val)
+            (throw 'relint-eval 'no-value))))
+
+       ((eq head 'pop)
+        (let* ((name (car body))
+               (local (assq name relint--locals)))
+          (if (and (memq name relint--eval-mutables)
+                   (cdr local)
+                   (consp (cadr local)))
+              (let ((val (cadr local)))
+                (setcdr local (list (cdr val)))
+                (car val))
+            (throw 'relint-eval 'no-value))))
 
        ;; let and let*: do not permit multi-expression bodies, since they
        ;; will contain necessary side-effects that we don't handle.
        ((eq head 'let)
-        (unless (= (length body) 2)
-          (throw 'relint-eval 'no-value))
         (let ((bindings
                (mapcar (lambda (binding)
                          (if (consp binding)
@@ -710,24 +749,25 @@ not be evaluated safely."
                                    (relint--eval-to-binding (cadr binding)))
                            (cons binding (list nil))))
                        (car body))))
-          (let ((relint--locals (append bindings relint--locals)))
-            (relint--eval (car (last body))))))
+          (let ((relint--locals (append bindings relint--locals))
+                (relint--eval-mutables (append (mapcar #'car bindings)
+                                               relint--eval-mutables)))
+            (relint--eval-body (cdr body)))))
 
        ((eq head 'let*)
-        (unless (= (length body) 2)
-          (throw 'relint-eval 'no-value))
         (let ((bindings (car body)))
           (if bindings
-              (let* ((binding (car bindings))
-                     (relint--locals
-                      (cons
-                       (if (consp binding)
-                           (cons (car binding)
-                                 (relint--eval-to-binding (cadr binding)))
-                         (cons binding (list nil)))
-                       relint--locals)))
+              (let* ((bindspec (car bindings))
+                     (binding
+                      (if (consp bindspec)
+                          (cons (car bindspec)
+                                (relint--eval-to-binding (cadr bindspec)))
+                        (cons bindspec (list nil))))
+                     (relint--locals (cons binding relint--locals))
+                     (relint--eval-mutables
+                      (cons (car binding) relint--eval-mutables)))
                 (relint--eval `(let* ,(cdr bindings) ,@(cdr body))))
-            (relint--eval (car (last body))))))
+            (relint--eval-body (cdr body)))))
 
        ;; Loose comma: can occur if we unwittingly stumbled into a backquote
        ;; form. Just eval the arg and hope for the best.
@@ -754,10 +794,8 @@ not be evaluated safely."
         (let* ((fn (cdr (assq head relint--function-defs)))
                (formals (car fn))
                (fn-body (cadr fn)))
-          (if (= (length fn-body) 1)
-              (let ((args (mapcar #'relint--eval body)))
-                (relint--apply formals args (car fn-body)))
-            (throw 'relint-eval 'no-value))))
+          (let ((args (mapcar #'relint--eval body)))
+            (relint--apply formals args fn-body))))
 
        ;; Locally defined macros: try expanding.
        ((assq head relint--macro-defs)
@@ -765,9 +803,8 @@ not be evaluated safely."
           (let* ((macro (cdr (assq head relint--macro-defs)))
                  (formals (car macro))
                  (macro-body (cadr macro)))
-            (if (= (length macro-body) 1)
-                (relint--eval (relint--apply formals args (car macro-body)))
-              (throw 'relint-eval 'no-value)))))
+            (relint--eval
+             (relint--apply formals args macro-body)))))
 
        ;; Alias: substitute and try again.
        ((assq head relint--alias-defs)
@@ -793,6 +830,14 @@ not be evaluated safely."
         nil
       val)))
 
+(defun relint--eval-list-body (body)
+  (and (consp body)
+       (progn
+         (while (consp (cdr body))
+           (relint--eval-list (car body))
+           (setq body (cdr body)))
+         (relint--eval-list (car body)))))
+
 (defun relint--eval-list (form)
   "Evaluate a form as far as possible, attempting to keep its list structure
 even if all subexpressions cannot be evaluated. Parts that cannot be
@@ -807,8 +852,8 @@ evaluated are nil."
                (and val (relint--eval-list val)))))))
    ((atom form)
     form)
-   ((eq (car form) 'eval-when-compile)
-    (relint--eval-list (car (last form))))
+   ((memq (car form) '(progn ignore-errors eval-when-compile eval-and-compile))
+    (relint--eval-list-body (cdr form)))
 
    ;; Pure structure-generating functions: Apply even if we cannot evaluate
    ;; all arguments (they will be nil), because we want a reasonable
@@ -1219,6 +1264,13 @@ directly."
                                                  (car old-val))))))
                           (and (consp val)
                                val))))))))
+    (`(pop ,(and (pred symbolp) name))
+     ;; Treat (pop NAME) as (setq NAME (cdr NAME)).
+     (let ((local (assq name relint--locals)))
+       (when (and local (memq name mutables))
+         (let ((old-val (cadr local)))
+           (when (consp old-val)
+             (setcdr local (list (cdr old-val))))))))
     (`(,(or 'if 'and 'or 'when 'unless) ,(and (pred consp) arg1) . ,rest)
      ;; Only first arg is executed unconditionally.
      ;; FIXME: A conditional in the tail position of its environment binding
