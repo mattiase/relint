@@ -769,6 +769,36 @@ not be evaluated safely."
                 (relint--eval `(let* ,(cdr bindings) ,@(cdr body))))
             (relint--eval-body (cdr body)))))
 
+       ;; dolist: simulate its operation. We could also expand it,
+       ;; but this is somewhat faster.
+       ((eq head 'dolist)
+        (unless (and (>= (length body) 2)
+                     (consp (car body)))
+          (throw 'relint-eval 'no-value))
+        (let ((var (nth 0 (car body)))
+              (seq-arg (nth 1 (car body)))
+              (res-arg (nth 2 (car body))))
+          (unless (symbolp var)
+            (throw 'relint-eval 'no-value))
+          (let ((seq (relint--eval-list seq-arg)))
+            (while (consp seq)
+              (let ((relint--locals (cons (list var (car seq))
+                                          relint--locals)))
+                (relint--eval-body (cdr body)))
+              (setq seq (cdr seq))))
+          (and res-arg (relint--eval res-arg))))
+
+       ;; while: this slows down simulation noticeably, but catches some
+       ;; mistakes.
+       ((eq head 'while)
+        (let ((condition (car body))
+              (loops 0))
+          (while (and (relint--eval condition)
+                      (< loops 100))
+            (relint--eval-body (cdr body))
+            (setq loops (1+ loops)))
+          nil))
+
        ;; Loose comma: can occur if we unwittingly stumbled into a backquote
        ;; form. Just eval the arg and hope for the best.
        ((eq head '\,)

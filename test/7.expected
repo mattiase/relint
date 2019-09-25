@@ -1,0 +1,6 @@
+7.elisp:10:15: In call to looking-at: Unescaped literal `^' (pos 2)
+  "ab^"
+   ..^
+7.elisp:21:15: In call to looking-at: Unescaped literal `$' (pos 3)
+  "!\"#$%"
+   ....^

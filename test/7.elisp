@@ -1,0 +1,21 @@
+;;; Relint test file 7          -*- emacs-lisp -*-
+
+(defun my-dolist-fun (seq)
+  (let ((s ""))
+    (dolist (c seq)
+      (setq s (concat s (char-to-string c))))
+    s))
+
+(defun test-dolist ()
+  (looking-at (my-dolist-fun '(?a ?b ?^))))
+
+(defun my-while-fun ()
+  (let ((s "")
+        (c ?!))
+    (while (< c ?&)
+      (setq s (concat s (char-to-string c)))
+      (setq c (1+ c)))
+    s))
+
+(defun test-while ()
+  (looking-at (my-while-fun)))
