@@ -31,3 +31,9 @@
 5.elisp:67:15: In call to looking-at: Unescaped literal `+' (pos 0)
   "+vu"
    ^
+5.elisp:72:15: In call to looking-at: Duplicated `U' inside character alternative (pos 2)
+  "[UU]"
+   ..^
+5.elisp:75:15: In call to looking-at: Duplicated `V' inside character alternative (pos 2)
+  "[VV]"
+   ..^

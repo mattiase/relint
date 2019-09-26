@@ -619,6 +619,17 @@ not be evaluated safely."
        ((memq head '(progn ignore-errors eval-when-compile eval-and-compile))
         (relint--eval-body body))
 
+       ((eq head 'prog1)
+        (let ((val (relint--eval (car body))))
+          (relint--eval-body (cdr body))
+          val))
+
+       ((eq head 'prog2)
+        (relint--eval (car body))
+        (let ((val (relint--eval (cadr body))))
+          (relint--eval-body (cddr body))
+          val))
+
        ;; delete-dups: Work on a copy of the argument.
        ((eq head 'delete-dups)
         (let ((arg (relint--eval (car body))))

@@ -67,3 +67,9 @@
   (looking-at (let* ((x (list "u" "+" "v"))
                      (y (pop x)))
                 (string-join (append x (list y))))))
+
+(defun test-prog1 ()
+  (looking-at (prog1 "[UU]" "a" "b" "c")))
+
+(defun test-prog2 ()
+  (looking-at (prog2 "a" "[VV]" "b" "c")))
