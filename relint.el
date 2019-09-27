@@ -298,8 +298,9 @@ list of list indices to follow to target)."
     (nreverse errs)))
 
 (defvar relint--variables nil
-  "Alist of global variable definitions seen so far.
- The variable names map to unevaluated forms.")
+  "Alist of global variable definitions.
+Each element is either (NAME expr EXPR), for unevaluated expressions,
+or (NAME val VAL), for values.")
 
 ;; List of variables that have been checked, so that we can avoid
 ;; checking direct uses of it.
@@ -528,8 +529,12 @@ not be evaluated safely."
                 (throw 'relint-eval 'no-value))
             (let ((binding (assq form relint--variables)))
               (if binding
-                  (relint--eval (cdr binding))
-                (throw 'relint-eval 'no-value))))))
+                  (if (eq (cadr binding) 'val)
+                      (caddr binding)
+                    (let ((val (relint--eval (caddr binding))))
+                      (setcdr binding (list 'val val))
+                      val))
+                  (throw 'relint-eval 'no-value))))))
        (t form))
     (let ((head (car form))
           (body (cdr form)))
@@ -889,8 +894,13 @@ evaluated are nil."
          (let ((local (assq form relint--locals)))
            (if local
                (and (cdr local) (cadr local))
-             (let ((val (cdr (assq form relint--variables))))
-               (and val (relint--eval-list val)))))))
+             (let ((binding (assq form relint--variables)))
+               (and binding
+                    (if (eq (cadr binding) 'val)
+                        (caddr binding)
+                      ;; Since we are only doing a list evaluation, don't
+                      ;; update the variable here.
+                      (relint--eval-list (caddr binding)))))))))
    ((atom form)
     form)
    ((memq (car form) '(progn ignore-errors eval-when-compile eval-and-compile))
@@ -1012,7 +1022,8 @@ EXPANDED is a list of expanded functions, to prevent recursion."
          ;; Check both variable contents and name.
          (or (let ((def (assq expr relint--variables)))
                (and def
-                    (relint--regexp-generators (cdr def) expanded)))
+                    (eq (cadr def) 'expr)
+                    (relint--regexp-generators (caddr def) expanded)))
              (and (or (memq expr '(page-delimiter paragraph-separate
                                    paragraph-start sentence-end
                                    comment-start-skip comment-end-skip))
@@ -1496,7 +1507,19 @@ directly."
                 (relint--check-defcustom-re form name file pos path))
               (push name relint--checked-variables))
              )
-            (push (cons name re-arg) relint--variables))))
+
+            (let* ((old (assq name relint--variables))
+                   (new
+                    (or (and old
+                             ;; Redefinition of the same variable: eagerly
+                             ;; evaluate the new expression in case it uses
+                             ;; the old value.
+                             (let ((val (catch 'relint-eval
+                                          (list (relint--eval re-arg)))))
+                               (and (consp val)
+                                    (cons 'val val))))
+                        (list 'expr re-arg))))
+              (push (cons name new) relint--variables)))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin

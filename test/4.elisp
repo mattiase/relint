@@ -45,3 +45,17 @@
   (looking-at (unless nil "c++"))
   (looking-at (string-join `("a" ,@(list "$") ,"b")))
   (looking-at (pcase 'a ((pred symbolp) "d++"))))
+
+;; Test repeated use of global variable
+(defconst my-var-a "*")
+(defconst my-var-b (concat my-var-a "b"))
+
+(defun test-var-ref ()
+  (looking-at my-var-b)
+  (looking-at (concat my-var-b "c")))
+
+;; Test global variable redefinition
+(defconst my-var-a (concat my-var-a "a"))
+
+(defun test-var-redef ()
+  (looking-at my-var-a))

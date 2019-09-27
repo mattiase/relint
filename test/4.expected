@@ -49,3 +49,12 @@
 4.elisp:47:15: In call to looking-at: Repetition of repetition (pos 2)
   "d++"
    ..^
+4.elisp:54:15: In call to looking-at: Unescaped literal `*' (pos 0)
+  "*b"
+   ^
+4.elisp:55:15: In call to looking-at: Unescaped literal `*' (pos 0)
+  "*bc"
+   ^
+4.elisp:61:15: In call to looking-at: Unescaped literal `*' (pos 0)
+  "*a"
+   ^
