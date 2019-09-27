@@ -19,3 +19,19 @@
 
 (defun test-while ()
   (looking-at (my-while-fun)))
+
+(defun test-mapc ()
+  (looking-at (let ((s ""))             ; "[**]"
+                (mapc (lambda (x) (setq s (concat s x)))
+                      '("[" "*" "*" "]"))
+                s)))
+
+(defun test-eval-cl-loop ()
+  (looking-at                           ; "!\"#$%"
+   (apply 'string (cl-loop for i in (number-sequence ?! ?%) collect i))))
+
+(defun test-catch ()
+  (looking-at (catch 'boing "[XX]")))
+
+(defun test-condition-case ()
+  (looking-at (condition-case err "[XX]" (error "Y"))))

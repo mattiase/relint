@@ -335,19 +335,22 @@ or (NAME val VAL), for values.")
   '(cons list append
     concat
     car cdr caar cadr cdar cddr car-safe cdr-safe nth nthcdr
+    caaar cdaar cadar cddar caadr cdadr caddr cdddr
     format format-message
     regexp-quote regexp-opt regexp-opt-charset
     reverse
     member memq memql remove remq member-ignore-case
-    assoc assq rassoc rassq
+    assoc assq rassoc rassq assoc-string
     identity
     string make-string make-list
     substring
     length safe-length
     symbol-name
+    intern intern-soft make-symbol
     null not xor
     eq eql equal
     string-equal string= string< string-lessp string> string-greaterp
+    compare-strings
     char-equal string-match-p
     string-match split-string
     wildcard-to-regexp
@@ -362,6 +365,7 @@ or (NAME val VAL), for values.")
     string-to-list string-to-vector string-or-null-p
     upcase downcase capitalize
     purecopy copy-sequence copy-alist copy-tree
+    flatten-tree
     member-ignore-case
     last butlast number-sequence
     plist-get plist-member
@@ -544,7 +548,8 @@ not be evaluated safely."
                  (eq (caar body) '\,))     ; In case we are inside a backquote.
             (throw 'relint-eval 'no-value)
           (car body)))
-       ((eq head 'function)
+       ((memq head '(function cl-function))
+        ;; Treat cl-function like plain function (close enough).
         (car body))
        ((eq head 'lambda)
         form)
@@ -624,6 +629,11 @@ not be evaluated safely."
        ((memq head '(progn ignore-errors eval-when-compile eval-and-compile))
         (relint--eval-body body))
 
+       ;; Hand-written implementation of `cl-assert' -- good enough.
+       ((eq head 'cl-assert)
+        (unless (relint--eval (car body))
+          (throw 'relint-eval 'no-value)))
+
        ((eq head 'prog1)
         (let ((val (relint--eval (car body))))
           (relint--eval-body (cdr body))
@@ -643,8 +653,21 @@ not be evaluated safely."
        ;; Safe macros that expand to pure code, and their auxiliary macros.
        ((memq head '(when unless
                      \` backquote-list*
-                     pcase pcase-let pcase-let* pcase--flip))
+                     pcase pcase-let pcase-let* pcase--flip
+                     cl-case cl-loop cl-flet cl-flet* cl-labels))
         (relint--eval (macroexpand form)))
+
+       ;; catch: as long as nobody throws, this naïve code is fine.
+       ((eq head 'catch)
+        (relint--eval-body (cdr body)))
+
+       ;; condition-case: as long as there is no error...
+       ((eq head 'condition-case)
+        (relint--eval (cadr body)))
+
+       ;; cl--block-wrapper: works like identity, more or less.
+       ((eq head 'cl--block-wrapper)
+        (relint--eval (car body)))
 
        ;; Functions taking a function as first argument.
        ((memq head '(apply funcall mapconcat
@@ -684,8 +707,8 @@ not be evaluated safely."
               (apply head fun args)
             (error (throw 'relint-eval 'no-value)))))
 
-       ;; mapcar, mapcan: accept missing items in the list argument.
-       ((memq head '(mapcar mapcan))
+       ;; mapcar, mapcan, mapc: accept missing items in the list argument.
+       ((memq head '(mapcar mapcan mapc))
         (let* ((fun (relint--wrap-function (relint--eval (car body))))
                (arg (relint--eval-list (cadr body)))
                (seq (if (listp arg)

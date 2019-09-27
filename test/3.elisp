@@ -135,3 +135,37 @@
    (copy-sequence (remove my-unknown (list my-unknown "[55]")))
    (copy-alist (remq my-unknown (list my-unknown "[66]")))
    (delete-dups (list my-unknown "[77]" my-unknown "[77]"))))
+
+(defun test-eval-cxxxr ()
+  (looking-at
+   (concat "+"                          ; "+abcdefgh"
+           (mapconcat
+            #'symbol-name
+            (list
+             (caaar '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (cdaar '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (cadar '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (cddar '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (caadr '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (cdadr '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (caddr '(((a . b) . (c . d)) . ((e . f) . (g . h))))
+             (cdddr '(((a . b) . (c . d)) . ((e . f) . (g . h)))))
+            ""))))
+
+(defun test-eval-intern ()
+  (looking-at
+   (concat "?"                          ; "?abc"
+           (symbol-name (intern "a"))
+           (symbol-name (intern-soft "b"))
+           (symbol-name (make-symbol "c")))))
+
+(defun test-eval-compare-strings ()
+  (looking-at
+   (progn                               ; "[AA]"
+     (cl-assert 'haha)
+     (and (compare-strings "abc" 0 2 "ABC" 0 2 t)
+          "[AA]"))))
+
+(defun test-eval-flatten-tree ()
+  (looking-at
+   (apply #'concat (flatten-tree '("$" ((("a") "b") ("c")))))))   ; "$abc"
