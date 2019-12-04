@@ -1239,10 +1239,19 @@ character alternative: `[' followed by a regexp-generating expression."
       (setq index (+ index 2))
       (setq args (cddr args)))))
 
-(defsubst relint--defcustom-type-regexp-p (type)
-  (or (eq type 'regexp)
-      (and (consp type)
-           (eq (car type) 'regexp))))
+(defun relint--defcustom-type-regexp-p (type)
+  "Whether the defcustom type TYPE indicates a regexp."
+  (pcase type
+    ('regexp t)
+    (`(regexp . ,_) t)
+    (`(string :tag ,tag . ,_)
+     (let ((case-fold-search t))
+       (string-match-p (rx bos
+                           (opt (or "the" "a") " ")
+                           (or "regex" "regular expression"))
+                       tag)))
+    (`(,(or 'choice 'radio) . ,rest)
+     (cl-some #'relint--defcustom-type-regexp-p rest))))
 
 (defun relint--check-and-eval-let-binding (binding mutables file pos path)
   "Check the let-binding BINDING, which is probably (NAME EXPR) or NAME,
