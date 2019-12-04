@@ -39,6 +39,13 @@
   (skip-syntax-backward (rx "w-"))
   (skip-syntax-forward (rx-to-string z)))
 
+;; Test incorrect provenance tracing
+(defun test-regexp-in-condition (x y z)
+  (format "[%s]" (if (regexp-quote x) y z))
+  (skip-chars-forward (when some-regexp y))
+  (skip-syntax-backward (unless (myrefun x) y))
+  (skip-chars-backward (while (myrefun x) z)))
+
 ;; Test suppression
 (defun test-suppression ()
   ;; relint suppression: Unescaped literal `$'
