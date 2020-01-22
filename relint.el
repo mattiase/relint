@@ -1106,6 +1106,7 @@ parameter is regexp-generating."
                 (string-match (rx
                                "%"
                                (opt (1+ digit) "$")
+                               (0+ (any "+ #" ?-))
                                (0+ digit)
                                (opt "." (0+ digit))
                                (group (any "%sdioxXefgcS")))
