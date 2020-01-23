@@ -1777,7 +1777,8 @@ searched recursively for *.el files to scan."
                                   (list arg)))
                               command-line-args-left)
                       nil default-directory)
-  (setq command-line-args-left nil))
+  (setq command-line-args-left nil)
+  (kill-emacs (if (> relint--error-count relint--suppression-count) 1 0)))
 
 (provide 'relint)
 
