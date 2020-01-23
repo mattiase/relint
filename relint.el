@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.11
-;; Package-Requires: ((xr "1.13"))
+;; Version: 1.12
+;; Package-Requires: ((xr "1.14"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, maint, regexps
 
@@ -55,6 +55,10 @@
 
 ;;; News:
 
+;; Version 1.12:
+;; - Improved detection of regexps in defcustom declarations
+;; - Better suppression of false positives
+;; - Nonzero exit status upon error in `relint-batch'
 ;; Version 1.11:
 ;; - Improved evaluator, now handling limited local variable mutation
 ;; - Bug fixes
