@@ -1692,7 +1692,7 @@ Return a list of (FORM . STARTING-POSITION)."
                       (if (zerop supp)
                           ""
                         (format " (%s suppressed)" supp)))))
-    (unless relint--quiet
+    (unless (or relint--quiet (and noninteractive (zerop errors)))
       (unless noninteractive
         (relint--add-to-error-buffer (format "\nFinished -- %s.\n" msg)))
       (message "relint: %s." msg))))
