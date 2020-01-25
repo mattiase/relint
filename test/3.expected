@@ -43,6 +43,3 @@
 3.elisp:164:4: In call to looking-at: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
-3.elisp:171:4: In call to looking-at: Unescaped literal `$' (pos 0)
-  "$abc"
-   ^

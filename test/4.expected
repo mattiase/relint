@@ -31,9 +31,6 @@
 4.elisp:26:15: In call to looking-at: Unescaped literal `+' (pos 0)
   "+c"
    ^
-4.elisp:32:15: In call to looking-at: Unescaped literal `^' (pos 13)
-  ".+ab\\(?:c+\\)d^"
-   ...............^
 4.elisp:43:15: In call to looking-at: Unescaped literal `^' (pos 1)
   "a^"
    .^

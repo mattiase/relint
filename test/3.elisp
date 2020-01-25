@@ -166,6 +166,9 @@
      (and (compare-strings "abc" 0 2 "ABC" 0 2 t)
           "[AA]"))))
 
-(defun test-eval-flatten-tree ()
-  (looking-at
-   (apply #'concat (flatten-tree '("$" ((("a") "b") ("c")))))))   ; "$abc"
+;;; `flatten-tree' appeared in 27.1; disable this part until that Emacs
+;;; version has been released.
+;;;
+;;;(defun test-eval-flatten-tree ()
+;;;  (looking-at
+;;;   (apply #'concat (flatten-tree '("$" ((("a") "b") ("c")))))))   ; "$abc"
