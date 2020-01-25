@@ -1772,7 +1772,9 @@ The buffer must be in emacs-lisp-mode."
   "Scan elisp source files for regexp-related errors.
 Call this function in batch mode with files and directories as
 command-line arguments.  Files are scanned; directories are
-searched recursively for *.el files to scan."
+searched recursively for *.el files to scan.
+When done, Emacs terminates with a nonzero status if anything worth
+complaining about was found, zero otherwise."
   (unless noninteractive
     (error "`relint-batch' is only for use with -batch"))
   (relint--scan-files (mapcan (lambda (arg)
