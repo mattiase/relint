@@ -118,3 +118,12 @@
 2.elisp:42:70: In call to m2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
+2.elisp:50:14: In call to f5: Duplicated `b' inside character alternative (pos 2)
+  "[bb]"
+   ..^
+2.elisp:50:21: In call to f5: Duplicated `c' inside character alternative (pos 2)
+  "[cc]"
+   ..^
+2.elisp:50:28: In call to f5: Duplicated `d' inside character alternative (pos 2)
+  "[dd]"
+   ..^

@@ -40,3 +40,11 @@
   (f2 "[AA]" "[BB]" "[CC]" "[DD]" "[EE]" "[FF]" "[GG]" "[HH]" "[II]" "[JJ]")
   (s2 "[AA]" "[BB]" "[CC]" "[DD]" "[EE]" "[FF]" "[GG]" "[HH]" "[II]" "[JJ]")
   (m2 "[AA]" "[BB]" "[CC]" "[DD]" "[EE]" "[FF]" "[GG]" "[HH]" "[II]" "[JJ]"))
+
+;; Test function doc string as means of detecting regexps.
+(defun f5 (a b c d e)
+  "Chew regular expression B, regexp C and regex D."
+  (list a b c d e))
+
+(defun f6 ()
+  (f5 "[aa]" "[bb]" "[cc]" "[dd]" "[ee]"))
