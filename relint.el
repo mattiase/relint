@@ -1525,7 +1525,7 @@ directly."
                                   (symbol-name name)))
               (relint--check-list re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
-             ((string-match-p (rx "-font-lock-keywords" eos)
+             ((string-match-p (rx "-font-lock-keywords")
                               (symbol-name name))
               (relint--check-font-lock-keywords re-arg name file pos
                                                 (cons 2 path))

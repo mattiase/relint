@@ -29,6 +29,7 @@
                             (regexp . "[a-Z]"))))
 
 (defconst bad-font-lock-keywords '(("[xx]" . tag) "[yy]"))
+(defconst more-font-lock-keywords-bad '(("[uu]" . tag) "[vv]"))
 
 ;; Test variable doc string heuristics.
 (defconst bad-var-1 "a^"
