@@ -85,3 +85,15 @@
     ("2^" argl))
   '("a" "b++" "c")
   nil)
+
+(defun my-syn-1 ()
+  (syntax-propertize-rules
+   ("thing" stuff)
+   ("$1$" bad)
+   ("^2^" alsobad)))
+
+(defun my-syn-2 ()
+  (syntax-propertize-precompile-rules
+   ("thing" stuff)
+   ("$3$" bad)
+   ("^4^" alsobad)))

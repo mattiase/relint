@@ -140,3 +140,15 @@
 1.elisp:86:3: In define-generic-mode my-mode: Repetition of repetition (pos 2)
   "b++"
    ..^
+1.elisp:92:5: In call to syntax-propertize-rules: Unescaped literal `$' (pos 0)
+  "$1$"
+   ^
+1.elisp:93:5: In call to syntax-propertize-rules: Unescaped literal `^' (pos 2)
+  "^2^"
+   ..^
+1.elisp:98:5: In call to syntax-propertize-precompile-rules: Unescaped literal `$' (pos 0)
+  "$3$"
+   ^
+1.elisp:99:5: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
+  "^4^"
+   ..^

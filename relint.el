@@ -1586,6 +1586,15 @@ directly."
           (relint--check-font-lock-keywords font-lock-list origin
                                             file pos (cons 4 path))
           (relint--check-list auto-mode-list origin file pos (cons 5 path))))
+       (`(,(or 'syntax-propertize-rules 'syntax-propertize-precompile-rules)
+          . ,rules)
+        (let ((index 1))
+          (dolist (item rules)
+            (when (consp item)
+              (relint--check-re (car item)
+                                (format "call to %s" (car form))
+                                file pos (cons 0 (cons index path))))
+            (setq index (1+ index)))))
        (`(,name . ,args)
         (let ((alias (assq name relint--alias-defs)))
           (when alias
