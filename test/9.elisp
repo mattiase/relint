@@ -1,0 +1,20 @@
+;;; Relint test file 9          -*- emacs-lisp -*-
+
+;; Test mutation/binding of known variables for detecting regexps.
+
+(defun test-9 ()
+  (setq-local page-delimiter "[aa]")
+  (setq-local paragraph-separate "[bb]")
+  (setq-local paragraph-start "[cc]")
+  (setq-local sentence-end "[dd]")
+  (setq-local comment-start-skip "[ee]")
+  (setq-local comment-end-skip "[ff]")
+
+  (setq sentence-end "[gg]")
+  (set (make-local-variable 'paragraph-start) "[hh]")
+
+  (let ((paragraph-separate "[ii]")
+        (page-delimiter "[jj]"))
+    (let* ((comment-start-skip "[kk]")
+           (comment-end-skip "[ll]"))
+      (asdf))))

@@ -1044,6 +1044,11 @@ or in the car of an element."
           (relint--check-re-string 
            re (format "%s (%s)" name rule-name) file pos path))))))
 
+(defconst relint--known-regexp-variables
+  '(page-delimiter paragraph-separate paragraph-start
+    sentence-end comment-start-skip comment-end-skip)
+  "List of known (global or buffer-local) regexp variables.")
+
 (defun relint--regexp-generators (expr expanded)
   "List of regexp-generating functions and variables used in EXPR.
 EXPANDED is a list of expanded functions, to prevent recursion."
@@ -1055,9 +1060,7 @@ EXPANDED is a list of expanded functions, to prevent recursion."
                (and def
                     (eq (cadr def) 'expr)
                     (relint--regexp-generators (caddr def) expanded)))
-             (and (or (memq expr '(page-delimiter paragraph-separate
-                                   paragraph-start sentence-end
-                                   comment-start-skip comment-end-skip))
+             (and (or (memq expr relint--known-regexp-variables)
                       ;; This is guesswork, but effective.
                       (string-match-p
                        (rx (or (seq bos (or "regexp" "regex"))
@@ -1288,6 +1291,11 @@ return (NAME); on syntax error, return nil."
           (cadr binding) mutables file pos (cons 1 path))
          (let ((val (catch 'relint-eval
                       (list (relint--eval (cadr binding))))))
+           (when (and (consp val)
+                      (stringp (car val))
+                      (memq (car binding) relint--known-regexp-variables))
+             ;; Setting a special buffer-local regexp.
+             (relint--check-re (car val) (car binding) file pos (cons 1 path)))
            (cons (car binding)
                  (if (eq val 'no-value)
                      nil
@@ -1341,7 +1349,7 @@ directly."
            (setq index (1+ index))))))
     (`(let* ,(and (pred listp) bindings) . ,body)
      (relint--check-let* bindings body mutables file pos path 0))
-    (`(setq . ,args)
+    (`(,(or 'setq 'setq-local) . ,args)
      ;; Only mutate lexical variables in the mutation list, which means
      ;; that this form will be executed exactly once during their remaining
      ;; lifetime. Other lexical vars will just be invalidated since we
@@ -1352,15 +1360,19 @@ directly."
                (expr (cadr args)))
            (relint--check-form-recursively-2
             expr mutables file pos (cons i path))
-           ;; Invalidate the variable if it was local; otherwise, ignore.
-           (let ((local (assq name relint--locals)))
-             (when local
-               (setcdr local
-                       (and (memq name mutables)
-                            (let ((val (catch 'relint-eval
-                                         (list (relint--eval expr)))))
-                              (and (not (eq val 'no-value))
-                                   val)))))))
+           (if (memq name relint--known-regexp-variables)
+               ;; Setting a special buffer-local regexp.
+               (relint--check-re expr name file pos (cons i path))
+
+             ;; Invalidate the variable if it was local; otherwise, ignore.
+             (let ((local (assq name relint--locals)))
+               (when local
+                 (setcdr local
+                         (and (memq name mutables)
+                              (let ((val (catch 'relint-eval
+                                           (list (relint--eval expr)))))
+                                (and (not (eq val 'no-value))
+                                     val))))))))
          (setq args (cddr args))
          (setq i (+ i 2)))))
     (`(push ,expr ,(and (pred symbolp) name))
@@ -1581,6 +1593,9 @@ directly."
                                     (cons 'val val))))
                         (list 'expr re-arg))))
               (push (cons name new) relint--variables)))))
+       (`(set (make-local-variable ',name) ,expr)
+        (when (memq name relint--known-regexp-variables)
+          (relint--check-re expr name file pos (cons 2 path))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin
