@@ -51,3 +51,15 @@
   ;; relint suppression: Unescaped literal `$'
   ;; relint suppression: Duplicated `a'
   (looking-at "$[aa]"))
+
+;; Test user-defined regexp-generating functions
+(defun make-a-nice-regexp ()
+  (stuff))
+
+(defun make-something ()
+  "Return a regexp made from whole cloth."
+  (stuff))
+
+(defun test-user-defined-generator ()
+  (skip-chars-forward (make-a-nice-regexp))
+  (skip-chars-backward (make-something)))

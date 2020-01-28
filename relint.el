@@ -1049,6 +1049,17 @@ or in the car of an element."
     sentence-end comment-start-skip comment-end-skip)
   "List of known (global or buffer-local) regexp variables.")
 
+(defconst relint--known-regexp-returning-functions
+  '(regexp-quote regexp-opt regexp-opt-charset
+    rx rx-to-string wildcard-to-regexp read-regexp
+    char-fold-to-regexp find-tag-default-as-regexp
+    find-tag-default-as-symbol-regexp sentence-end
+    word-search-regexp)
+  "List of functions known to return a regexp.")
+
+;; List of functions believed to return a regexp.
+(defvar relint--regexp-returning-functions)
+
 (defun relint--regexp-generators (expr expanded)
   "List of regexp-generating functions and variables used in EXPR.
 EXPANDED is a list of expanded functions, to prevent recursion."
@@ -1069,11 +1080,7 @@ EXPANDED is a list of expanded functions, to prevent recursion."
                        (symbol-name expr)))
                   (list expr)))))
    ((atom expr) nil)
-   ((memq (car expr) '(regexp-quote regexp-opt regexp-opt-charset
-                       rx rx-to-string wildcard-to-regexp read-regexp
-                       char-fold-to-regexp find-tag-default-as-regexp
-                       find-tag-default-as-symbol-regexp sentence-end
-                       word-search-regexp))
+   ((memq (car expr) relint--regexp-returning-functions)
     (list (car expr)))
    ((memq (car expr) '(looking-at re-search-forward re-search-backward
                        string-match string-match-p looking-back looking-at-p))
@@ -1185,46 +1192,65 @@ character alternative: `[' followed by a regexp-generating expression."
   (pcase form
     (`(,(or 'defun 'defmacro 'defsubst)
        ,name ,args . ,body)
+     (when (symbolp name)
+       (let ((doc-args nil))
+         (when (string-match-p (rx (or  "-regexp" "-regex" "-re") eos)
+                               (symbol-name name))
+           (push name relint--regexp-returning-functions))
+         ;; Examine doc string if any.
+         (when (stringp (car body))
+           (setq doc-args (relint--regexp-args-from-doc (car body)))
+           (when (and (not (memq name relint--regexp-returning-functions))
+                      (let ((case-fold-search t))
+                        (string-match-p
+                         (rx (or bos
+                                 (seq (or "return" "generate" "make")
+                                      (opt "s")
+                                      (+ (any " \n\t"))))
+                             (opt (or "a" "the") (+ (any " \n\t")))
+                             (or "regex"
+                                 (seq "regular"
+                                      (+ (any " \n\t"))
+                                      "expression")))
+                         (car body))))
+             (push name relint--regexp-returning-functions))
+           (setq body (cdr body)))
+         ;; Skip declarations.
+         (while (and (consp (car body))
+                     (memq (caar body) '(interactive declare)))
+           (setq body (cdr body)))
+         ;; Save the function or macro for possible use.
+         (push (list name args body)
+               (if (eq (car form) 'defmacro)
+                   relint--macro-defs
+                 relint--function-defs))
 
-     (let ((doc-args nil))
-       ;; Skip doc string.
-       (when (stringp (car body))
-         (setq doc-args (relint--regexp-args-from-doc (car body)))
-         (setq body (cdr body)))
-       ;; Skip declarations.
-       (while (and (consp (car body))
-                   (memq (caar body) '(interactive declare)))
-         (setq body (cdr body)))
-       ;; Save the function or macro for possible use.
-       (push (list name args body)
-             (if (eq (car form) 'defmacro)
-                 relint--macro-defs
-               relint--function-defs))
-
-       ;; If any argument looks like a regexp, remember it so that it can be
-       ;; checked in calls.
-       (when (consp args)
-         (let ((indices nil)
-               (index 0))
-           (while args
-             (let ((arg (car args)))
-               (when (symbolp arg)
-                 (cond
-                  ((eq arg '&optional))   ; Treat optional args as regular.
-                  ((eq arg '&rest)
-                   (setq args nil))       ; Ignore &rest args.
-                  (t
-                   (when (or (memq arg doc-args)
-                             (string-match-p (rx (or (or "regexp" "regex" "-re"
-                                                         "pattern")
-                                                     (seq bos "re"))
-                                                 eos)
-                                             (symbol-name arg)))
-                     (push index indices))
-                   (setq index (1+ index)))))
-               (setq args (cdr args))))
-           (when indices
-             (push (cons name (reverse indices)) relint--regexp-functions))))))
+         ;; If any argument looks like a regexp, remember it so that it can be
+         ;; checked in calls.
+         (when (consp args)
+           (let ((indices nil)
+                 (index 0))
+             (while args
+               (let ((arg (car args)))
+                 (when (symbolp arg)
+                   (cond
+                    ((eq arg '&optional))   ; Treat optional args as regular.
+                    ((eq arg '&rest)
+                     (setq args nil))       ; Ignore &rest args.
+                    (t
+                     (when (or (memq arg doc-args)
+                               (string-match-p
+                                (rx (or (or "regexp" "regex" "-re"
+                                            "pattern")
+                                        (seq bos "re"))
+                                    eos)
+                                (symbol-name arg)))
+                       (push index indices))
+                     (setq index (1+ index)))))
+                 (setq args (cdr args))))
+             (when indices
+               (push (cons name (reverse indices))
+                     relint--regexp-functions)))))))
     (`(defalias ,name-arg ,def-arg . ,_)
      (let ((name (relint--eval-or-nil name-arg))
            (def  (relint--eval-or-nil def-arg)))
@@ -1689,6 +1715,8 @@ Return a list of (FORM . STARTING-POSITION)."
           (relint--variables nil)
           (relint--checked-variables nil)
           (relint--regexp-functions nil)
+          (relint--regexp-returning-functions
+           relint--known-regexp-returning-functions)
           (relint--function-defs nil)
           (relint--macro-defs nil)
           (relint--alias-defs nil)

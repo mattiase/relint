@@ -30,3 +30,5 @@
 6.elisp:38:24: `regexp-opt' cannot be used for arguments to `skip-syntax-forward'
 6.elisp:39:25: `rx' cannot be used for arguments to `skip-syntax-backward'
 6.elisp:40:24: `rx-to-string' cannot be used for arguments to `skip-syntax-forward'
+6.elisp:64:23: `make-a-nice-regexp' cannot be used for arguments to `skip-chars-forward'
+6.elisp:65:24: `make-something' cannot be used for arguments to `skip-chars-backward'
