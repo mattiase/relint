@@ -108,6 +108,14 @@ skip-syntax-backward.
     the branches can be eliminated without changing the meaning of the
     regexp.
 
+  - Repetition subsumes/subsumed by preceding repetition
+
+    An repeating expression matches a superset or subset of what the
+    previous expression matches, in such a way that one of them is
+    unnecessary. For example, [ab]+a* matches the same text as [ab]+,
+    so the a* could be removed without changing the meaning of the
+    regexp.
+
   - Uncounted repetition
 
     The construct A\{,\} repeats A zero or more times which was
