@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.12
+;; Version: 1.13
 ;; Package-Requires: ((xr "1.15") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
@@ -55,6 +55,13 @@
 
 ;;; News:
 
+;; Version 1.13:
+;; - Look in function/macro doc strings to find regexp arguments and
+;;   return values
+;; - Detect binding and mutation of some known regexp variables
+;; - Detect regexps as arguments to `syntax-propertize-rules'
+;; - More font-lock-keywords variables are scanned for regexps
+;; - `relint-batch' no longer outputs a summary if there were no errors
 ;; Version 1.12:
 ;; - Improved detection of regexps in defcustom declarations
 ;; - Better suppression of false positives
