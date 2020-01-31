@@ -1393,10 +1393,13 @@ directly."
                (expr (cadr args)))
            (relint--check-form-recursively-2
             expr mutables file pos (cons i path))
-           (if (memq name relint--known-regexp-variables)
-               ;; Setting a special buffer-local regexp.
-               (relint--check-re expr name file pos (cons i path))
-
+           (cond
+            ((memq name relint--known-regexp-variables)
+             (relint--check-re expr name file pos (cons i path)))
+            ((memq name '(font-lock-defaults font-lock-keywords))
+             (relint--check-font-lock-keywords expr name
+                                               file pos (cons i path)))
+            (t
              ;; Invalidate the variable if it was local; otherwise, ignore.
              (let ((local (assq name relint--locals)))
                (when local
@@ -1405,7 +1408,7 @@ directly."
                               (let ((val (catch 'relint-eval
                                            (list (relint--eval expr)))))
                                 (and (not (eq val 'no-value))
-                                     val))))))))
+                                     val)))))))))
          (setq args (cddr args))
          (setq i (+ i 2)))))
     (`(push ,expr ,(and (pred symbolp) name))
@@ -1570,7 +1573,7 @@ directly."
                                   (symbol-name name)))
               (relint--check-list re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
-             ((string-match-p (rx "-font-lock-keywords")
+             ((string-match-p (rx "font-lock-keywords")
                               (symbol-name name))
               (relint--check-font-lock-keywords re-arg name file pos
                                                 (cons 2 path))
@@ -1626,9 +1629,15 @@ directly."
                                     (cons 'val val))))
                         (list 'expr re-arg))))
               (push (cons name new) relint--variables)))))
+       (`(font-lock-add-keywords ,_ ,keywords . ,_)
+        (relint--check-font-lock-keywords
+         keywords (car form) file pos (cons 2 path)))
        (`(set (make-local-variable ',name) ,expr)
-        (when (memq name relint--known-regexp-variables)
-          (relint--check-re expr name file pos (cons 2 path))))
+        (cond ((memq name relint--known-regexp-variables)
+               (relint--check-re expr name file pos (cons 2 path)))
+              ((memq name '(font-lock-defaults font-lock-keywords))
+               (relint--check-font-lock-keywords expr name
+                                                 file pos (cons 2 path)))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin

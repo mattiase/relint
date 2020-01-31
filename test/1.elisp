@@ -30,6 +30,7 @@
 
 (defconst bad-font-lock-keywords '(("[xx]" . tag) "[yy]"))
 (defconst more-font-lock-keywords-bad '(("[uu]" . tag) "[vv]"))
+(font-lock-add-keywords 'mymode '(("[ss]" . tag) "[tt]"))
 
 ;; Test variable doc string heuristics.
 (defconst bad-var-1 "a^"

@@ -34,3 +34,12 @@
 9.elisp:19:30: In comment-end-skip: Duplicated `l' inside character alternative (pos 2)
   "[ll]"
    ..^
+9.elisp:23:34: In font-lock-defaults (tag): Duplicated `m' inside character alternative (pos 2)
+  "[mm]"
+   ..^
+9.elisp:24:28: In font-lock-defaults (tag): Duplicated `n' inside character alternative (pos 2)
+  "[nn]"
+   ..^
+9.elisp:25:50: In font-lock-defaults (tag): Duplicated `o' inside character alternative (pos 2)
+  "[oo]"
+   ..^

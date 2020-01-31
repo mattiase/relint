@@ -18,3 +18,8 @@
     (let* ((comment-start-skip "[kk]")
            (comment-end-skip "[ll]"))
       (asdf))))
+
+(defun test-9-fl ()
+  (setq-local font-lock-defaults '(("[mm]" . tag)))
+  (setq font-lock-defaults '(("[nn]" . tag)))
+  (set (make-local-variable 'font-lock-defaults) '(("[oo]" . tag))))
