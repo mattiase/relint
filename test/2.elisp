@@ -5,6 +5,8 @@
   (looking-at "[aa]")
   (re-search-forward "[bb]")
   (re-search-backward "[cc]")
+  (search-forward-regexp "[BB]")
+  (search-forward-regexp "[CC]")
   (string-match "[dd]" s)
   (string-match-p "[ee]" s)
   (looking-at-p "[ff]")

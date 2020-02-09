@@ -1482,6 +1482,7 @@ directly."
                'query-replace-regexp
                'posix-looking-at 'posix-search-backward 'posix-search-forward
                'posix-string-match
+               'search-forward-regexp 'search-backward-regexp
                'load-history-filename-element
                'kill-matching-buffers
                'keep-lines 'flush-lines 'how-many)
