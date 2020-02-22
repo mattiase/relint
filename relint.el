@@ -302,12 +302,14 @@ list of list indices to follow to target)."
           (if sym
               (if (memq sym seen)
                   (push (cons i (relint--escape-string
-                                 (format "Duplicated syntax code `%c'" c)
+                                 (format-message
+                                  "Duplicated syntax code `%c'" c)
                                  nil))
                         errs)
                 (push sym seen))
             (push (cons i (relint--escape-string
-                           (format "Invalid char `%c' in syntax string" c)
+                           (format-message
+                            "Invalid char `%c' in syntax string" c)
                            nil))
                   errs)))))
     (nreverse errs)))
@@ -1112,9 +1114,10 @@ EXPANDED is a list of expanded functions, to prevent recursion."
 (defun relint--check-non-regexp-provenance (skip-function form file pos path)
   (let ((reg-gen (relint--regexp-generators form nil)))
     (when reg-gen
-      (relint--report file pos path
-                      (format "`%s' cannot be used for arguments to `%s'"
-                              (car reg-gen) skip-function)))))
+      (relint--report
+       file pos path
+       (format-message "`%s' cannot be used for arguments to `%s'"
+                       (car reg-gen) skip-function)))))
 
 (defun relint--check-format-mixup (template args file pos path)
   "Look for a format expression that suggests insertion of a regexp
@@ -1150,7 +1153,7 @@ parameter is regexp-generating."
             (when reg-gen
               (relint--report
                file pos (cons (+ index 2) path)
-               (format
+               (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
                 (car reg-gen))))))
         (unless (eq type ?%)
@@ -1175,7 +1178,7 @@ character alternative: `[' followed by a regexp-generating expression."
             (when reg-gen
               (relint--report
                file pos (cons (1+ index) path)
-               (format
+               (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
                 (car reg-gen)))))))
       (setq index (1+ index))

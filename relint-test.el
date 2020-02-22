@@ -98,7 +98,10 @@ and a path."
 (defun relint-test--scan-file (file)
   "Scan FILE and return the results as a string."
   (with-temp-buffer
-    (relint--scan-buffer (find-file-noselect file t) (current-buffer) t)
+    ;; The reference files (*.expected) are kept in the `grave' style,
+    ;; to make the test independent of `text-quoting-style'.
+    (let ((text-quoting-style 'grave))
+      (relint--scan-buffer (find-file-noselect file t) (current-buffer) t))
     (buffer-string)))
 
 (defun relint-test--read-file (file)
