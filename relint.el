@@ -134,10 +134,9 @@
                                 (seq ";" (0+ nonl))))))
     (goto-char (match-end 0))))
 
-(defun relint--go-to-pos-path (toplevel-pos path)
-  "Move point to TOPLEVEL-POS and PATH (reversed list of list
-indices to follow to target)."
-  (goto-char toplevel-pos)
+(defun relint--follow-path (path)
+  "Move point forward along PATH (reversed list of list indices
+to follow to target)."
   (let ((p (reverse path)))
     (while p
       (relint--skip-whitespace)
@@ -168,13 +167,19 @@ indices to follow to target)."
       (setq p (cdr p))))
   (relint--skip-whitespace))
 
-(defun relint--pos-line-col-from-toplevel-pos-path (toplevel-pos path)
-  "Compute (POSITION LINE COLUMN) from TOPLEVEL-POS and PATH (reversed
-list of list indices to follow to target)."
+(defun relint--pos-from-toplevel-pos-path (toplevel-pos path)
+  "Compute position from TOPLEVEL-POS and PATH (reversed list of
+list indices to follow to target)."
   (save-excursion
-    (relint--go-to-pos-path toplevel-pos path)
-    (list (point)
-          (line-number-at-pos (point) t)
+    (goto-char toplevel-pos)
+    (relint--follow-path path)
+    (point)))
+
+(defun relint--line-col-from-pos (pos)
+  "(LINE . COLUMN), both 1-based, from POS."
+  (save-excursion
+    (goto-char pos)
+    (cons (line-number-at-pos pos t)
           (1+ (current-column)))))
 
 (defun relint--suppression (pos message)
@@ -211,13 +216,20 @@ list of list indices to follow to target)."
       (message "%s" string)
     (relint--add-to-error-buffer (concat string "\n"))))
 
-(defun relint--report (file pos path message)
-  (let ((pos-line-col (relint--pos-line-col-from-toplevel-pos-path pos path)))
-    (if (relint--suppression (nth 0 pos-line-col) message)
+(defun relint--report (file toplevel-pos path message &optional str str-pos)
+  (let* ((pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
+         (line-col (relint--line-col-from-pos pos))
+         (line (car line-col))
+         (col (cdr line-col)))
+    (if (relint--suppression pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
       (relint--output-error
-       (format "%s:%d:%d: %s"
-               file (nth 1 pos-line-col) (nth 2 pos-line-col) message))))
+       (concat
+        (format "%s:%d:%d: %s" file line col message)
+        (and str
+             (format "\n  %s\n   %s"
+                     (relint--quote-string str)
+                     (relint--caret-string str str-pos)))))))
   (setq relint--error-count (1+ relint--error-count)))
 
 (defun relint--escape-string (str escape-printable)
@@ -250,16 +262,17 @@ list of list indices to follow to target)."
          (condition-case err
              (mapcar (lambda (warning)
                        (let ((ofs (car warning)))
-                         (format "In %s: %s (pos %d)\n  %s\n   %s"
-                                 name (cdr warning) ofs
-                                 (relint--quote-string string)
-                                 (relint--caret-string string ofs))))
+                         (list (format "In %s: %s (pos %d)"
+                                       name (cdr warning) ofs)
+                               string ofs)))
                      (funcall checker string))
-           (error (list (format "In %s: Error: %s: %s"
-                                name  (cadr err)
-                                (relint--quote-string string)))))))
-    (dolist (msg complaints)
-      (relint--report file pos path msg))))
+           (error (list (list
+                         (format "In %s: Error: %s: %s"
+                                 name  (cadr err)
+                                 (relint--quote-string string))
+                         nil nil))))))
+    (dolist (c complaints)
+      (relint--report file pos path (nth 0 c) (nth 1 c) (nth 2 c)))))
 
 (defun relint--check-skip-set (skip-set-string name file pos path)
   (relint--check-string skip-set-string #'xr-skip-set-lint name file pos path))

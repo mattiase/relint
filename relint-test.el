@@ -79,9 +79,7 @@ and a path."
       (dolist (item (relint-test--enumerate-nodes toplevel-form nil))
         (let* ((node (car item))
                (path (cdr item))
-               (pos-line-col (relint--pos-line-col-from-toplevel-pos-path
-                              toplevel-pos path))
-               (pos (nth 0 pos-line-col)))
+               (pos (relint--pos-from-toplevel-pos-path toplevel-pos path)))
           ;; Skip sugared items; they cannot be read in isolation.
           (unless (memq node '(quote function \` \, \,@))
             (goto-char pos)
