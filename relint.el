@@ -23,35 +23,9 @@
 
 ;;; Commentary:
 
-;; Scan elisp files for regexp strings and reports potential errors,
-;; including deprecated syntax and bad practice.
-;; Also check the regexp-like skip-set arguments to
-;; `skip-chars-forward' and `skip-chars-backward', and syntax codes for
-;; `skip-syntax-forward' and `skip-syntax-backward'.
-;;
-;; How to use:
-;;
-;; * Inside Emacs:
-;;
-;;   M-x relint-file            (check a single elisp file)
-;;   M-x relint-directory       (check all .el files in a directory tree)
-;;   M-x relint-current-buffer  (check current buffer)
-;;
-;;   In the `*relint*' buffer, pressing "g" will re-run the same check.
-;;
-;; * From batch mode:
-;;
-;;   emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
-;;
-;;   where options for finding relint and xr need to be added after
-;;   `-batch', either `-f package-initialize' or `-L DIR'.
-
-;; Bugs:
-;;
-;;   Since there is no sure way to know whether a particular string is a
-;;   regexp, the code has to guess a lot, and will likely miss quite a
-;;   few. It tries to minimise the amount of false positives.
-;;   In other words, it is a nothing but a hack.
+;; Relint scans elisp files for regexps and reports potential errors,
+;; including deprecated syntax and bad practice. See the README file
+;; for more information.
 
 ;;; News:
 
