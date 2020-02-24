@@ -8,10 +8,10 @@
 6.elisp:18:19: Value from `regexp-opt' cannot be spliced into `[...]'
 6.elisp:19:19: Value from `rx' cannot be spliced into `[...]'
 6.elisp:20:19: Value from `rx-to-string' cannot be spliced into `[...]'
-6.elisp:24:23: In call to skip-chars-forward: Suspect skip set framed in `[...]' (pos 0)
+6.elisp:24:24: In call to skip-chars-forward: Suspect skip set framed in `[...]' (pos 0)
   "[a-z]"
    ^
-6.elisp:25:24: In call to skip-chars-backward: Duplicated character `a' (pos 1)
+6.elisp:25:26: In call to skip-chars-backward: Duplicated character `a' (pos 1)
   "aa"
    .^
 6.elisp:26:23: `some-re' cannot be used for arguments to `skip-chars-forward'
@@ -19,10 +19,10 @@
 6.elisp:28:23: `regexp-opt' cannot be used for arguments to `skip-chars-forward'
 6.elisp:29:24: `rx' cannot be used for arguments to `skip-chars-backward'
 6.elisp:30:23: `rx-to-string' cannot be used for arguments to `skip-chars-forward'
-6.elisp:34:24: In call to skip-syntax-forward: Invalid char `s' in syntax string (pos 1)
+6.elisp:34:27: In call to skip-syntax-forward: Invalid char `s' in syntax string (pos 1)
   "\\s-"
    ..^
-6.elisp:35:25: In call to skip-syntax-backward: Duplicated syntax code ` ' (pos 1)
+6.elisp:35:27: In call to skip-syntax-backward: Duplicated syntax code ` ' (pos 1)
   "- "
    .^
 6.elisp:36:24: `some-re' cannot be used for arguments to `skip-syntax-forward'

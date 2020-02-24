@@ -182,6 +182,27 @@ list indices to follow to target)."
     (cons (line-number-at-pos pos t)
           (1+ (current-column)))))
 
+(defun relint--literal-string-pos (string-pos n)
+  "Position of character N in a literal string at STRING-POS."
+  (save-excursion
+    (goto-char (1+ string-pos))         ; Skip first double quote.
+    (dotimes (_ n)
+      ;; Match a single character in a string. Since we already read it,
+      ;; we know that it's well-formed.
+      (looking-at
+       (rx (* ?\\ (any " \n"))   ; Skip escaped space and newline.
+           (or (not (any ?\\))   ; Unescaped char.
+               (seq ?\\
+                    (or (** 1 3 (any "0-7"))              ; Octal.
+                        (seq ?x (+ (any "0-9A-Fa-f")))    ; Hex.
+                        (seq ?u (= 4 (any "0-9A-Fa-f")))  ; Unicode.
+                        (seq ?U (= 8 (any "0-9A-Fa-f")))  ; Unicode.
+                        (seq "N{" (+ (not (any "}"))) "}")  ; Named.
+                        (seq (any "CMS") "-" anything)    ; Keystroke.
+                        anything)))))
+      (goto-char (match-end 0)))
+    (point)))
+
 (defun relint--suppression (pos message)
   "Whether there is a suppression for MESSAGE at POS."
   (save-excursion
@@ -217,7 +238,10 @@ list indices to follow to target)."
     (relint--add-to-error-buffer (concat string "\n"))))
 
 (defun relint--report (file toplevel-pos path message &optional str str-pos)
-  (let* ((pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
+  (let* ((base-pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
+         (pos (if (eq (char-after base-pos) ?\")
+                  (relint--literal-string-pos base-pos str-pos)
+                base-pos))
          (line-col (relint--line-col-from-pos pos))
          (line (car line-col))
          (col (cdr line-col)))

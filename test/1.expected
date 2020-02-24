@@ -1,13 +1,13 @@
-1.elisp:6:22: In bad-regexp: Duplicated `A' inside character alternative (pos 2)
+1.elisp:6:25: In bad-regexp: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
-1.elisp:7:21: In bad-regex: Duplicated `A' inside character alternative (pos 2)
+1.elisp:7:24: In bad-regex: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
-1.elisp:8:18: In bad-re: Duplicated `A' inside character alternative (pos 2)
+1.elisp:8:21: In bad-re: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
-1.elisp:9:23: In bad-pattern: Duplicated `A' inside character alternative (pos 2)
+1.elisp:9:26: In bad-pattern: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
 1.elisp:11:23: In bad-regexps: Unescaped literal `+' (pos 0)
@@ -103,19 +103,19 @@
 1.elisp:33:33: In font-lock-add-keywords: Duplicated `t' inside character alternative (pos 2)
   "[tt]"
    ..^
-1.elisp:36:21: In bad-var-1: Unescaped literal `^' (pos 1)
+1.elisp:36:23: In bad-var-1: Unescaped literal `^' (pos 1)
   "a^"
    .^
-1.elisp:38:19: In bad-var-2: Duplicated `z' inside character alternative (pos 2)
+1.elisp:38:22: In bad-var-2: Duplicated `z' inside character alternative (pos 2)
   "[zz]"
    ..^
-1.elisp:40:22: In bad-var-3: Reversed range `o-O' matches nothing (pos 1)
+1.elisp:40:24: In bad-var-3: Reversed range `o-O' matches nothing (pos 1)
   "[o-O]"
    .^
-1.elisp:46:25: In bad-custom-1: Duplicated `n' inside character alternative (pos 2)
+1.elisp:46:28: In bad-custom-1: Duplicated `n' inside character alternative (pos 2)
   "[nn]"
    ..^
-1.elisp:50:25: In bad-custom-2: Duplicated `s' inside character alternative (pos 2)
+1.elisp:50:28: In bad-custom-2: Duplicated `s' inside character alternative (pos 2)
   "[ss]"
    ..^
 1.elisp:57:9: In bad-custom-3-regexp: Unescaped literal `+' (pos 0)
@@ -152,15 +152,15 @@
 1.elisp:88:3: In define-generic-mode my-mode: Repetition of repetition (pos 2)
   "b++"
    ..^
-1.elisp:94:5: In call to syntax-propertize-rules: Unescaped literal `$' (pos 0)
+1.elisp:94:6: In call to syntax-propertize-rules: Unescaped literal `$' (pos 0)
   "$1$"
    ^
-1.elisp:95:5: In call to syntax-propertize-rules: Unescaped literal `^' (pos 2)
+1.elisp:95:8: In call to syntax-propertize-rules: Unescaped literal `^' (pos 2)
   "^2^"
    ..^
-1.elisp:100:5: In call to syntax-propertize-precompile-rules: Unescaped literal `$' (pos 0)
+1.elisp:100:6: In call to syntax-propertize-precompile-rules: Unescaped literal `$' (pos 0)
   "$3$"
    ^
-1.elisp:101:5: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
+1.elisp:101:8: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
   "^4^"
    ..^

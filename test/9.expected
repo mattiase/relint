@@ -1,37 +1,37 @@
-9.elisp:6:30: In page-delimiter: Duplicated `a' inside character alternative (pos 2)
+9.elisp:6:33: In page-delimiter: Duplicated `a' inside character alternative (pos 2)
   "[aa]"
    ..^
-9.elisp:7:34: In paragraph-separate: Duplicated `b' inside character alternative (pos 2)
+9.elisp:7:37: In paragraph-separate: Duplicated `b' inside character alternative (pos 2)
   "[bb]"
    ..^
-9.elisp:8:31: In paragraph-start: Duplicated `c' inside character alternative (pos 2)
+9.elisp:8:34: In paragraph-start: Duplicated `c' inside character alternative (pos 2)
   "[cc]"
    ..^
-9.elisp:9:28: In sentence-end: Duplicated `d' inside character alternative (pos 2)
+9.elisp:9:31: In sentence-end: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
-9.elisp:10:34: In comment-start-skip: Duplicated `e' inside character alternative (pos 2)
+9.elisp:10:37: In comment-start-skip: Duplicated `e' inside character alternative (pos 2)
   "[ee]"
    ..^
-9.elisp:11:32: In comment-end-skip: Duplicated `f' inside character alternative (pos 2)
+9.elisp:11:35: In comment-end-skip: Duplicated `f' inside character alternative (pos 2)
   "[ff]"
    ..^
-9.elisp:13:22: In sentence-end: Duplicated `g' inside character alternative (pos 2)
+9.elisp:13:25: In sentence-end: Duplicated `g' inside character alternative (pos 2)
   "[gg]"
    ..^
-9.elisp:14:47: In paragraph-start: Duplicated `h' inside character alternative (pos 2)
+9.elisp:14:50: In paragraph-start: Duplicated `h' inside character alternative (pos 2)
   "[hh]"
    ..^
-9.elisp:16:29: In paragraph-separate: Duplicated `i' inside character alternative (pos 2)
+9.elisp:16:32: In paragraph-separate: Duplicated `i' inside character alternative (pos 2)
   "[ii]"
    ..^
-9.elisp:17:25: In page-delimiter: Duplicated `j' inside character alternative (pos 2)
+9.elisp:17:28: In page-delimiter: Duplicated `j' inside character alternative (pos 2)
   "[jj]"
    ..^
-9.elisp:18:32: In comment-start-skip: Duplicated `k' inside character alternative (pos 2)
+9.elisp:18:35: In comment-start-skip: Duplicated `k' inside character alternative (pos 2)
   "[kk]"
    ..^
-9.elisp:19:30: In comment-end-skip: Duplicated `l' inside character alternative (pos 2)
+9.elisp:19:33: In comment-end-skip: Duplicated `l' inside character alternative (pos 2)
   "[ll]"
    ..^
 9.elisp:23:34: In font-lock-defaults (tag): Duplicated `m' inside character alternative (pos 2)
