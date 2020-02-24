@@ -275,7 +275,7 @@ or nil if no position could be determined."
 
 (defun relint--report (file toplevel-pos path message &optional str str-pos)
   (let* ((base-pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
-         (pos (or (relint--string-pos base-pos str-pos)
+         (pos (or (and str-pos (relint--string-pos base-pos str-pos))
                   base-pos)))
     (if (relint--suppression pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
