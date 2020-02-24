@@ -123,3 +123,16 @@ and a path."
             nil (rx ".elisp" eos)))
   (let ((base (string-remove-suffix ".elisp" f)))
     (eval `(relint-test--deftest ,base))))
+
+(ert-deftest relint-buffer ()
+  (let ((buf (get-buffer-create " *relint-test*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer buf
+            (emacs-lisp-mode)
+            (insert ";hello\n(looking-at \"broken**regexp\")\n"))
+          (should (equal
+                   (relint-buffer buf)
+                   '(("In call to looking-at: Repetition of repetition" 28
+                      "broken**regexp" 7)))))
+      (kill-buffer buf))))

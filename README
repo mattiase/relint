@@ -8,27 +8,33 @@ skip-syntax-backward.
 
 * Usage
 
-  Check a single file:
+  - Check a single file:
 
-    M-x relint-file
+      M-x relint-file
 
-  Check all .el files in a directory tree:
+  - Check all .el files in a directory tree:
 
-    M-x relint-directory
+      M-x relint-directory
 
-  Check current buffer:
+  - Check current buffer:
 
-    M-x relint-current-buffer
+      M-x relint-current-buffer
 
-  From batch mode:
+  - From batch mode:
 
-    emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
+      emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
 
-  where directories are scanned recursively.
-  (Options for finding relint and xr need to be added after
-  -batch, either -f package-initialize or -L DIR.)
+    where directories are scanned recursively.
+    (Options for finding relint and xr need to be added after
+    -batch, either -f package-initialize or -L DIR.)
 
-  In the *relint* buffer, pressing "g" will re-run the same check.
+    In the *relint* buffer, pressing "g" will re-run the same check.
+
+  - From elisp code, use one of the above functions or
+
+      (relint-buffer BUFFER)
+
+    which returns a list of diagnostics.
 
 * Installation
 
