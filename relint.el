@@ -203,6 +203,25 @@ list indices to follow to target)."
       (goto-char (match-end 0)))
     (point)))
 
+(defun relint--string-pos (pos n)
+  "Position of character N in a string expression at POS,
+or nil if no position could be determined."
+  (save-excursion
+    (goto-char pos)
+    (pcase (read (current-buffer))
+      ((pred stringp) (relint--literal-string-pos pos n))
+      (`(concat . ,args)
+       ;; Find out in which argument the sought position is.
+       (let ((index 1))
+         (while (and args (stringp (car args)) (>= n (length (car args))))
+           (setq n (- n (length (car args))))
+           (setq index (1+ index))
+           (setq args (cdr args)))
+         (and args (stringp (car args))
+              (let ((string-pos
+                     (relint--pos-from-toplevel-pos-path pos (list index))))
+                (relint--literal-string-pos string-pos n))))))))
+
 (defun relint--suppression (pos message)
   "Whether there is a suppression for MESSAGE at POS."
   (save-excursion
@@ -256,9 +275,8 @@ list indices to follow to target)."
 
 (defun relint--report (file toplevel-pos path message &optional str str-pos)
   (let* ((base-pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
-         (pos (if (eq (char-after base-pos) ?\")
-                  (relint--literal-string-pos base-pos str-pos)
-                base-pos)))
+         (pos (or (relint--string-pos base-pos str-pos)
+                  base-pos)))
     (if (relint--suppression pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
       (funcall relint--report-function file pos message str str-pos)))
