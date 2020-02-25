@@ -151,13 +151,6 @@ list indices to follow to target)."
     (relint--follow-path path)
     (point)))
 
-(defun relint--line-col-from-pos (pos)
-  "(LINE . COLUMN), both 1-based, from POS."
-  (save-excursion
-    (goto-char pos)
-    (cons (line-number-at-pos pos t)
-          (1+ (current-column)))))
-
 (defun relint--literal-string-pos (string-pos n)
   "Position of character N in a literal string at STRING-POS."
   (save-excursion
@@ -233,17 +226,18 @@ or nil if no position could be determined."
     (relint--add-to-error-buffer (concat string "\n"))))
 
 (defun relint--output-report (file pos message str str-pos)
-  (let* ((line-col (relint--line-col-from-pos pos))
-         (line (car line-col))
-         (col (cdr line-col)))
-      (relint--output-message
-       (concat
-        (format "%s:%d:%d: %s" file line col message)
-        (and str-pos (format " (pos %d)" str-pos))
-        (and str
-             (format "\n  %s\n   %s"
-                     (relint--quote-string str)
-                     (relint--caret-string str str-pos)))))))
+  (let ((line (line-number-at-pos pos t))
+        (col (save-excursion
+               (goto-char pos)
+               (1+ (current-column)))))
+    (relint--output-message
+     (concat
+      (format "%s:%d:%d: %s" file line col message)
+      (and str-pos (format " (pos %d)" str-pos))
+      (and str
+           (format "\n  %s\n   %s"
+                   (relint--quote-string str)
+                   (relint--caret-string str str-pos)))))))
   
 (defvar relint--report-function #'relint--output-report
   "Function accepting a found complaint, taking the arguments
