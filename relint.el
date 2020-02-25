@@ -110,7 +110,9 @@
 
 (defun relint--follow-path (path)
   "Move point forward along PATH (reversed list of list indices
-to follow to target)."
+to follow to target).
+For example, if point is before the form (A B (C ((D E F G))))
+and PATH is (3 0 1 2), then the returned position is right before G."
   (let ((p (reverse path)))
     (while p
       (relint--skip-whitespace)
@@ -141,11 +143,11 @@ to follow to target)."
       (setq p (cdr p))))
   (relint--skip-whitespace))
 
-(defun relint--pos-from-toplevel-pos-path (toplevel-pos path)
-  "Compute position from TOPLEVEL-POS and PATH (reversed list of
+(defun relint--pos-from-start-pos-path (start-pos path)
+  "Compute position from START-POS and PATH (reversed list of
 list indices to follow to target)."
   (save-excursion
-    (goto-char toplevel-pos)
+    (goto-char start-pos)
     (relint--follow-path path)
     (point)))
 
@@ -193,7 +195,7 @@ or nil if no position could be determined."
            (setq args (cdr args)))
          (and args (stringp (car args))
               (let ((string-pos
-                     (relint--pos-from-toplevel-pos-path pos (list index))))
+                     (relint--pos-from-start-pos-path pos (list index))))
                 (relint--literal-string-pos string-pos n))))))))
 
 (defun relint--suppression (pos message)
@@ -247,8 +249,8 @@ or nil if no position could be determined."
   "Function accepting a found complaint, taking the arguments
 (FILE POS MESSAGE STRING STRING-IDX).")
 
-(defun relint--report (file toplevel-pos path message &optional str str-pos)
-  (let* ((base-pos (relint--pos-from-toplevel-pos-path toplevel-pos path))
+(defun relint--report (file start-pos path message &optional str str-pos)
+  (let* ((base-pos (relint--pos-from-start-pos-path start-pos path))
          (pos (or (and str-pos (relint--string-pos base-pos str-pos))
                   base-pos)))
     (if (relint--suppression pos message)
