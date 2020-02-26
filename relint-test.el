@@ -132,12 +132,14 @@ and a path."
           (with-current-buffer buf
             (emacs-lisp-mode)
             (insert ";hello\n(looking-at \"broken**regexp\")\n")
+            (insert "(looking-at (make-string 2 ?^))\n")
             (insert "(looking-at (concat \"ab\" \"cdef\" \"[gg]\"))\n"))
           (should (equal
                    (relint-buffer buf)
-                   '(("In call to looking-at: Repetition of repetition" 28
+                   '(("In call to looking-at: Repetition of repetition" 20 28
                       "broken**regexp" 7)
+                     ("In call to looking-at: Unescaped literal `^'" 50 nil
+                      "^^" 1)
                      ("In call to looking-at: Duplicated `g' inside character alternative"
-                      73
-                      "abcdef[gg]" 8)))))
+                      82 105 "abcdef[gg]" 8)))))
       (kill-buffer buf))))
