@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.13
-;; Package-Requires: ((xr "1.15") (emacs "26.1"))
+;; Version: 1.14
+;; Package-Requires: ((xr "1.16") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -29,6 +29,11 @@
 
 ;;; News:
 
+;; Version 1.14:
+;; - Added `relint-buffer'
+;; - Report error position inside string literals when possible
+;; - Scan arguments to `search-forward-regexp' and `search-backward-regexp'
+;; - Use text quoting for messages
 ;; Version 1.13:
 ;; - Look in function/macro doc strings to find regexp arguments and
 ;;   return values
