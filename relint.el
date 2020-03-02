@@ -226,9 +226,9 @@ or nil if no position could be determined."
       matched)))
 
 (defun relint--output-message (string)
-  (if (and noninteractive (not relint--error-buffer))
-      (message "%s" string)
-    (relint--add-to-error-buffer (concat string "\n"))))
+  (if relint--error-buffer
+      (relint--add-to-error-buffer (concat string "\n"))
+    (message "%s" string)))
 
 (defun relint--output-report (file expr-pos error-pos message str str-idx)
   (let* ((pos (or error-pos expr-pos))
@@ -1732,7 +1732,7 @@ directly."
          (setq index (1+ index)))))))
 
 (defun relint--show-errors ()
-  (unless (or noninteractive relint--quiet)
+  (unless (or noninteractive relint--quiet (not relint--error-buffer))
     (let ((pop-up-windows t))
       (display-buffer relint--error-buffer)
       (sit-for 0))))
@@ -1800,10 +1800,9 @@ Return a list of (FORM . STARTING-POSITION)."
   (setq relint--quiet quiet)
   (setq relint--error-count 0)
   (setq relint--suppression-count 0)
-  (if noninteractive
-      (setq relint--error-buffer error-buffer)
-    (setq relint--error-buffer (or error-buffer (relint--get-error-buffer)))
-    (with-current-buffer relint--error-buffer
+  (setq relint--error-buffer error-buffer)
+  (when error-buffer
+    (with-current-buffer error-buffer
       (unless quiet
         (let ((inhibit-read-only t))
           (insert (format "Relint results for %s\n" target))
@@ -1849,8 +1848,8 @@ Return a list of (FORM . STARTING-POSITION)."
   "Mode for relint output."
   (setq-local relint-last-target nil))
 
-(defun relint--scan-files (files target base-dir)
-  (relint--init target base-dir nil nil)
+(defun relint--scan-files (files target base-dir error-buffer)
+  (relint--init target base-dir error-buffer nil)
   (dolist (file files)
     ;;(relint--output-message (format "Scanning %s" file))
     (relint--scan-file file base-dir))
@@ -1862,8 +1861,7 @@ Return a list of (FORM . STARTING-POSITION)."
 
 (defun relint--scan-buffer (buffer error-buffer quiet)
   "Scan BUFFER for regexp errors.
-Diagnostics to ERROR-BUFFER, or if nil to *relint*.
-If QUIET, don't emit messages."
+Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
   (unless (eq (buffer-local-value 'major-mode buffer) 'emacs-lisp-mode)
     (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
   (relint--init buffer default-directory error-buffer quiet)
@@ -1877,7 +1875,8 @@ If QUIET, don't emit messages."
 (defun relint-file (file)
   "Scan FILE, an elisp file, for regexp-related errors."
   (interactive "fRelint elisp file: ")
-  (relint--scan-files (list file) file (file-name-directory file)))
+  (relint--scan-files (list file) file (file-name-directory file)
+                      (relint--get-error-buffer)))
 
 ;;;###autoload
 (defun relint-directory (dir)
@@ -1886,14 +1885,14 @@ If QUIET, don't emit messages."
   (message "Finding .el files in %s..." dir)
   (let ((files (relint--tree-files dir)))
     (message "Scanning files...")
-    (relint--scan-files files dir dir)))
+    (relint--scan-files files dir dir (relint--get-error-buffer))))
 
 ;;;###autoload
 (defun relint-current-buffer ()
   "Scan the current buffer for regexp errors.
 The buffer must be in emacs-lisp-mode."
   (interactive)
-  (relint--scan-buffer (current-buffer) nil nil))
+  (relint--scan-buffer (current-buffer) (relint--get-error-buffer) nil))
 
 ;;;###autoload
 (defun relint-buffer (buffer)
@@ -1930,7 +1929,7 @@ complaining about was found, zero otherwise."
                                     (relint--tree-files arg)
                                   (list arg)))
                               command-line-args-left)
-                      nil default-directory)
+                      nil default-directory nil)
   (setq command-line-args-left nil)
   (kill-emacs (if (> relint--error-count relint--suppression-count) 1 0)))
 
