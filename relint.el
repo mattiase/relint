@@ -711,11 +711,13 @@ not be evaluated safely."
           (delete-dups (copy-sequence arg))))
 
        ;; Safe macros that expand to pure code, and their auxiliary macros.
+       ;; FIXME: Some of these aren't actually safe at all, since they
+       ;; may expand their arguments eagerly, running arbitrary code!
        ((memq head '(when unless
                      \` backquote-list*
                      pcase pcase-let pcase-let* pcase--flip
-                     cl-case cl-loop cl-flet cl-flet* cl-labels))
-        (relint--eval (macroexpand form)))
+                     cl-case cl-loop cl-block cl-flet cl-flet* cl-labels))
+        (relint--eval (macroexpand-1 form)))
 
        ;; catch: as long as nobody throws, this naïve code is fine.
        ((eq head 'catch)
@@ -1003,7 +1005,7 @@ evaluated are nil."
     (relint--eval-list (cadr form)))
 
    ((memq (car form) '(\` backquote-list*))
-    (relint--eval-list (macroexpand form)))
+    (relint--eval-list (macroexpand-1 form)))
 
    ((assq (car form) relint--safe-alternatives)
     (relint--eval-list (cons (cdr (assq (car form) relint--safe-alternatives))
