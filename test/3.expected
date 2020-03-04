@@ -10,28 +10,28 @@
 3.elisp:94:4: In call to looking-at: Unescaped literal `^' (pos 2)
   "^m^"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `1' inside character alternative (pos 2)
+3.elisp:131:4: In another-bad-regexp-list: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `2' inside character alternative (pos 2)
+3.elisp:132:4: In another-bad-regexp-list: Duplicated `2' inside character alternative (pos 2)
   "[22]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `1' inside character alternative (pos 2)
+3.elisp:132:4: In another-bad-regexp-list: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `3' inside character alternative (pos 2)
+3.elisp:133:4: In another-bad-regexp-list: Duplicated `3' inside character alternative (pos 2)
   "[33]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `4' inside character alternative (pos 2)
+3.elisp:134:4: In another-bad-regexp-list: Duplicated `4' inside character alternative (pos 2)
   "[44]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `5' inside character alternative (pos 2)
+3.elisp:135:4: In another-bad-regexp-list: Duplicated `5' inside character alternative (pos 2)
   "[55]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `6' inside character alternative (pos 2)
+3.elisp:136:4: In another-bad-regexp-list: Duplicated `6' inside character alternative (pos 2)
   "[66]"
    ..^
-3.elisp:130:3: In another-bad-regexp-list: Duplicated `7' inside character alternative (pos 2)
+3.elisp:137:4: In another-bad-regexp-list: Duplicated `7' inside character alternative (pos 2)
   "[77]"
    ..^
 3.elisp:141:13: In call to looking-at: Unescaped literal `+' (pos 0)

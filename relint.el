@@ -146,7 +146,10 @@ and PATH is (3 0 1 2), then the returned position is right before G."
             (forward-sexp)
             (setq skip (1- skip)))))
       (setq p (cdr p))))
-  (relint--skip-whitespace))
+  (relint--skip-whitespace)
+  (when (looking-at (rx "."))
+    (forward-char)
+    (relint--skip-whitespace)))
 
 (defun relint--pos-from-start-pos-path (start-pos path)
   "Compute position from START-POS and PATH (reversed list of
@@ -1014,11 +1017,64 @@ evaluated are nil."
    (t
     (relint--eval-or-nil form))))
 
-(defun relint--get-list (form)
-  "Convert something to a list, or nil."
-  (let ((val (relint--eval-list form)))
-    (and (consp val) val)))
-  
+(defun relint--eval-list-iter (fun form path)
+  "Evaluate FORM to a list and call FUN for each non-nil element
+with (ELEM ELEM-PATH LITERAL) as arguments. ELEM-PATH is the best
+approximation to a path to ELEM and has the same base position as
+PATH; LITERAL is true if ELEM-PATH leads to a literal ELEM in the
+source."
+  (pcase form
+    (`(quote ,arg)
+     (when (consp arg)
+       (let ((i 0)
+             (p (cons 1 path)))
+         (dolist (elem arg)
+           (when elem
+             (funcall fun elem (cons i p) t))
+           (setq i (1+ i))))))
+    (`(list . ,args)
+     (let ((i 1))
+       (dolist (expr args)
+         (pcase expr
+           ((pred stringp)
+            (funcall fun expr (cons i path) t))
+           (`(quote ,elem)
+            (when elem
+              (funcall fun elem (cons 1 (cons i path)) t)))
+           (_ (let ((elem (relint--eval-or-nil expr)))
+                (when elem
+                  (funcall fun elem (cons i path) nil)))))
+         (setq i (1+ i)))))
+    (`(append . ,args)
+     (let ((i 1))
+       (dolist (arg args)
+         (relint--eval-list-iter fun arg (cons i path))
+         (setq i (1+ i)))))
+    (`(\` ,args)
+     (when (consp args)
+       (let ((i 0))
+         (let ((p0 (cons 1 path)))
+           (dolist (arg args)
+             (let* ((expanded (relint--eval-or-nil (list '\` arg)))
+                    (values (if (and (consp arg)
+                                     (eq (car arg) '\,@))
+                                expanded
+                              (list expanded)))
+                    (p (cons i p0)))
+               (dolist (elem values)
+                 (when elem
+                   (funcall fun elem p (equal arg expanded)))))
+             (setq i (1+ i)))))))
+    (`(eval-when-compile ,expr)
+     (relint--eval-list-iter fun expr (cons 1 path)))
+    (_
+     ;; Fall back on `relint--eval-list', giving up on
+     ;; element-specific source position.
+     (let ((expr (relint--eval-list form)))
+       (when (consp expr)
+         (dolist (elem expr)
+           (funcall fun elem path nil)))))))
+
 (defun relint--get-string (form)
   "Convert something to a string, or nil."
   (let ((val (relint--eval-or-nil form)))
@@ -1031,72 +1087,93 @@ evaluated are nil."
 
 (defun relint--check-list (form name file pos path)
   "Check a list of regexps."
-  ;; Don't use dolist -- mustn't crash on improper lists.
-  (let ((l (relint--get-list form)))
-    (while (consp l)
-      (when (stringp (car l))
-        (relint--check-re-string (car l) name file pos path))
-      (setq l (cdr l)))))
+  (relint--eval-list-iter
+   (lambda (elem elem-path _literal)
+     (when (stringp elem)
+       (relint--check-re-string elem name file pos elem-path)))
+   form path))
 
 (defun relint--check-list-any (form name file pos path)
   "Check a list of regexps or conses whose car is a regexp."
-  (dolist (elem (relint--get-list form))
-    (cond
-     ((stringp elem)
-      (relint--check-re-string elem name file pos path))
-     ((and (consp elem)
-           (stringp (car elem)))
-      (relint--check-re-string (car elem) name file pos path)))))
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (cond
+      ((stringp elem)
+       (relint--check-re-string elem name file pos elem-path))
+      ((and (consp elem)
+            (stringp (car elem)))
+       (relint--check-re-string (car elem) name file pos
+                                (if literal (cons 0 elem-path) elem-path)))))
+   form path))
 
 (defun relint--check-alist-any (form name file pos path)
   "Check an alist whose cars or cdrs may be regexps."
-  (dolist (elem (relint--get-list form))
-    (when (consp elem)
-      (when (stringp (car elem))
-        (relint--check-re-string (car elem) name file pos path))
-      (when (stringp (cdr elem))
-        (relint--check-re-string (cdr elem) name file pos path)))))
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (when (consp elem)
+       (when (stringp (car elem))
+         (relint--check-re-string (car elem) name file pos
+                                  (if literal (cons 0 elem-path) elem-path)))
+       (when (stringp (cdr elem))
+         (relint--check-re-string (cdr elem) name file pos
+                                  (if literal (cons 1 elem-path) elem-path)))))
+   form path))
 
 (defun relint--check-alist-cdr (form name file pos path)
   "Check an alist whose cdrs are regexps."
-  (dolist (elem (relint--get-list form))
-    (when (and (consp elem)
-               (stringp (cdr elem)))
-      (relint--check-re-string (cdr elem) name file pos path))))
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (when (and (consp elem)
+                (stringp (cdr elem)))
+       (relint--check-re-string (cdr elem) name file pos
+                                (if literal (cons 1 elem-path) elem-path))))
+   form path))
 
 (defun relint--check-font-lock-keywords (form name file pos path)
   "Check a font-lock-keywords list.  A regexp can be found in an element,
 or in the car of an element."
-  (dolist (elem (relint--get-list form))
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
     (cond
      ((stringp elem)
-      (relint--check-re-string elem name file pos path))
+      (relint--check-re-string elem name file pos elem-path))
      ((and (consp elem)
            (stringp (car elem)))
       (let* ((tag (and (symbolp (cdr elem)) (cdr elem)))
-             (ident (if tag (format "%s (%s)" name tag) name)))
-        (relint--check-re-string (car elem) ident file pos path))))))
+             (ident (if tag (format "%s (%s)" name tag) name))
+             (p (if literal
+                    (cons 0 elem-path)
+                  elem-path)))
+        (relint--check-re-string (car elem) ident file pos p)))))
+   form path))
 
 (defun relint--check-compilation-error-regexp-alist-alist (form name
                                                            file pos path)
-  (dolist (elem (relint--get-list form))
-    (if (cadr elem)
-        (relint--check-re-string
-         (cadr elem)
-         (format "%s (%s)" name (car elem))
-         file pos path))))
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (when (cadr elem)
+       (relint--check-re-string
+        (cadr elem)
+        (format "%s (%s)" name (car elem))
+        file pos (if literal (cons 1 elem-path) elem-path))))
+   form path))
 
 (defun relint--check-rules-list (form name file pos path)
   "Check a variable on `align-mode-rules-list' format"
-  (dolist (rule (relint--get-list form))
-    (when (and (consp rule)
-               (symbolp (car rule)))
-      (let* ((rule-name (car rule))
-             (re-form (cdr (assq 'regexp (cdr rule))))
-             (re (relint--get-string re-form)))
-        (when (stringp re)
-          (relint--check-re-string 
-           re (format "%s (%s)" name rule-name) file pos path))))))
+  (relint--eval-list-iter
+   (lambda (rule rule-path literal)
+     (when (and (consp rule)
+                (symbolp (car rule)))
+       (let ((rule-name (car rule))
+             (i 1))
+         (dolist (clause (cdr rule))
+           (when (and (consp clause) (eq (car clause) 'regexp)
+                      (stringp (cdr clause)))
+             (relint--check-re-string 
+              (cdr clause) (format "%s (%s)" name rule-name) file pos
+              (if literal (cons 1 (cons i rule-path)) rule-path)))
+           (setq i (1+ i))))))
+   form path))
 
 (defconst relint--known-regexp-variables
   '(page-delimiter paragraph-separate paragraph-start
