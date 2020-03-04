@@ -1862,10 +1862,10 @@ Return a list of (FORM . STARTING-POSITION)."
 (defun relint--scan-buffer (buffer error-buffer quiet)
   "Scan BUFFER for regexp errors.
 Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
-  (unless (eq (buffer-local-value 'major-mode buffer) 'emacs-lisp-mode)
-    (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
-  (relint--init buffer default-directory error-buffer quiet)
   (with-current-buffer buffer
+    (unless (derived-mode-p 'emacs-lisp-mode)
+      (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
+    (relint--init buffer default-directory error-buffer quiet)
     (save-excursion
       (relint--scan-current-buffer (buffer-name))))
   (relint--finish))
