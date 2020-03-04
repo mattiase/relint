@@ -230,7 +230,8 @@ or nil if no position could be determined."
       (relint--add-to-error-buffer (concat string "\n"))
     (message "%s" string)))
 
-(defun relint--output-report (file expr-pos error-pos message str str-idx)
+(defun relint--output-report (file expr-pos error-pos message str str-idx
+                              severity)
   (let* ((pos (or error-pos expr-pos))
          (line (line-number-at-pos pos t))
          (col (save-excursion
@@ -238,25 +239,31 @@ or nil if no position could be determined."
                 (1+ (current-column)))))
     (relint--output-message
      (concat
-      (format "%s:%d:%d: %s" file line col message)
+      (format "%s:%d:%d: " file line col)
+      (and (eq severity 'error) "error: ")
+      message
       (and str-idx (format " (pos %d)" str-idx))
-      (and str
-           (format "\n  %s\n   %s"
-                   (relint--quote-string str)
-                   (relint--caret-string str str-idx)))))))
+      (and str     (format "\n  %s" (relint--quote-string str)))
+      (and str-idx (format "\n   %s" (relint--caret-string str str-idx)))))))
   
 (defvar relint--report-function #'relint--output-report
   "Function accepting a found complaint, taking the arguments
-(FILE EXPR-POS ERROR-POS MESSAGE STRING STRING-IDX).")
+(FILE EXPR-POS ERROR-POS MESSAGE STRING STRING-IDX SEVERITY).")
 
-(defun relint--report (file start-pos path message &optional str str-idx)
+(defun relint--report (file start-pos path message str str-idx severity)
   (let* ((expr-pos (relint--pos-from-start-pos-path start-pos path))
          (error-pos (and str-idx (relint--string-pos expr-pos str-idx))))
     (if (relint--suppression expr-pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
       (funcall relint--report-function file expr-pos error-pos message
-               str str-idx)))
+               str str-idx severity)))
   (setq relint--error-count (1+ relint--error-count)))
+
+(defun relint--warn (file start-pos path message &optional str str-idx)
+  (relint--report file start-pos path message str str-idx 'warning))
+
+(defun relint--err (file start-pos path message &optional str str-idx)
+  (relint--report file start-pos path message str str-idx 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -286,18 +293,16 @@ or nil if no position could be determined."
 (defun relint--check-string (string checker name file pos path)
   (let ((complaints
          (condition-case err
-             (mapcar (lambda (warning)
-                       (let ((ofs (car warning)))
-                         (list (format "In %s: %s" name (cdr warning))
-                               string ofs)))
-                     (funcall checker string))
-           (error (list (list
-                         (format "In %s: Error: %s: %s"
-                                 name  (cadr err)
-                                 (relint--quote-string string))
-                         nil nil))))))
+             (funcall checker string)
+           (error
+            (relint--err file pos path
+                         (format "In %s: %s" name (cadr err))
+                         string nil)
+            nil))))
     (dolist (c complaints)
-      (relint--report file pos path (nth 0 c) (nth 1 c) (nth 2 c)))))
+      (relint--warn file pos path
+                    (format "In %s: %s" name (cdr c))
+                    string (car c)))))
 
 (defun relint--check-skip-set (skip-set-string name file pos path)
   (relint--check-string skip-set-string #'xr-skip-set-lint name file pos path))
@@ -1152,7 +1157,7 @@ EXPANDED is a list of expanded functions, to prevent recursion."
 (defun relint--check-non-regexp-provenance (skip-function form file pos path)
   (let ((reg-gen (relint--regexp-generators form nil)))
     (when reg-gen
-      (relint--report
+      (relint--warn
        file pos path
        (format-message "`%s' cannot be used for arguments to `%s'"
                        (car reg-gen) skip-function)))))
@@ -1189,7 +1194,7 @@ parameter is regexp-generating."
                     (substring template start percent)))
           (let ((reg-gen (relint--regexp-generators (nth index args) nil)))
             (when reg-gen
-              (relint--report
+              (relint--warn
                file pos (cons (+ index 2) path)
                (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
@@ -1214,7 +1219,7 @@ character alternative: `[' followed by a regexp-generating expression."
                                    arg))
           (let ((reg-gen (relint--regexp-generators (cadr args) nil)))
             (when reg-gen
-              (relint--report
+              (relint--warn
                file pos (cons (1+ index) path)
                (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
@@ -1758,10 +1763,10 @@ Return a list of (FORM . STARTING-POSITION)."
              (goto-char pos)
              (forward-sexp 1))
             (t
-             (relint--report file (point) nil (prin1-to-string err))
+             (relint--err file (point) nil (prin1-to-string err))
              (setq keep-going nil))))
           (error
-           (relint--report file (point) nil (prin1-to-string err))
+           (relint--err file (point) nil (prin1-to-string err))
            (setq keep-going nil)))
         (when (consp form)
           (push (cons form pos) forms))))
@@ -1899,19 +1904,21 @@ The buffer must be in emacs-lisp-mode."
   "Scan BUFFER for regexp errors. Return list of diagnostics.
 Each element in the returned list has the form
 
-  (MESSAGE EXPR-POS ERROR-POS STRING STRING-IDX),
+  (MESSAGE EXPR-POS ERROR-POS STRING STRING-IDX SEVERITY),
 
 where MESSAGE is the message string, EXPR-POS the location of the
 flawed expression, ERROR-POS the exact position of the error or
 nil if unavailable, STRING is nil or a string to which the
-message pertains, and STRING-IDX is nil or an index into STRING.
+message pertains, STRING-IDX is nil or an index into STRING,
+and SEVERITY is `error' or `warning'.
 The intent is that ERROR-POS is the position in the buffer that
 corresponds to STRING at STRING-IDX, if such a location can be
 determined."
   (let* ((complaints nil)
          (relint--report-function
-          (lambda (_file expr-pos error-pos message str str-idx)
-            (push (list message expr-pos error-pos str str-idx) complaints))))
+          (lambda (_file expr-pos error-pos message str str-idx severity)
+            (push (list message expr-pos error-pos str str-idx severity)
+                  complaints))))
     (relint--scan-buffer buffer nil t)
     (nreverse complaints)))
 

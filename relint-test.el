@@ -133,13 +133,16 @@ and a path."
             (emacs-lisp-mode)
             (insert ";hello\n(looking-at \"broken**regexp\")\n")
             (insert "(looking-at (make-string 2 ?^))\n")
-            (insert "(looking-at (concat \"ab\" \"cdef\" \"[gg]\"))\n"))
+            (insert "(looking-at (concat \"ab\" \"cdef\" \"[gg]\"))\n")
+            (insert "(string-match \"[xy\" s)\n"))
           (should (equal
                    (relint-buffer buf)
-                   '(("In call to looking-at: Repetition of repetition" 20 28
-                      "broken**regexp" 7)
-                     ("In call to looking-at: Unescaped literal `^'" 50 nil
-                      "^^" 1)
+                   '(("In call to looking-at: Repetition of repetition"
+                      20 28 "broken**regexp" 7 warning)
+                     ("In call to looking-at: Unescaped literal `^'"
+                      50 nil "^^" 1 warning)
                      ("In call to looking-at: Duplicated `g' inside character alternative"
-                      82 105 "abcdef[gg]" 8)))))
+                      82 105 "abcdef[gg]" 8 warning)
+                     ("In call to string-match: Unterminated character alternative"
+                      125 nil "[xy" nil error)))))
       (kill-buffer buf))))

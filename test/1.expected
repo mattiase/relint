@@ -133,7 +133,8 @@
 1.elisp:65:25: In bad-custom-5: Unescaped literal `^' (pos 2)
   "^x^"
    ..^
-1.elisp:69:25: In bad-custom-6: Error: No character class `[:bah:]': "[[:bah:]]"
+1.elisp:69:25: error: In bad-custom-6: No character class `[:bah:]'
+  "[[:bah:]]"
 1.elisp:73:25: In bad-custom-7: Duplicated `a' inside character alternative (pos 2)
   "[aa]"
    ..^
