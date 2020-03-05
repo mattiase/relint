@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.14
-;; Package-Requires: ((xr "1.16") (emacs "26.1"))
+;; Version: 1.15
+;; Package-Requires: ((xr "1.17") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -29,6 +29,11 @@
 
 ;;; News:
 
+;; Version 1.15:
+;; - Improved position accuracy in various lists of regexps
+;; - Check for mistake in rx `any' forms
+;; - `relint-buffer' now also returns severity (warning, error)
+;; - Relint can now also check the *scratch* buffer
 ;; Version 1.14:
 ;; - Added `relint-buffer'
 ;; - Report error position inside string literals when possible
