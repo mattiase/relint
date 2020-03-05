@@ -1,0 +1,15 @@
+;;; Relint test file 11          -*- emacs-lisp -*-
+
+;; Test errors in rx
+
+(defun my-fun ()
+  (list
+   (rx nonl (in ?c "abc" ?b))
+   (rx (: (* (not (char "0-9ac-ceg-h3"))
+             (any "a-m" (?f . ?t) "!s")
+             (opt (not-char space "q" digit space)))
+          (any "0-9()-+")
+          (any "0-9+-.")
+          (any "-a-e")
+          (any "k-m-")
+          (any "A-F-K-T")))))

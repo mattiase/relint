@@ -165,6 +165,11 @@ skip-syntax-backward.
     In general, A?, where A matches the empty string, can be
     simplified to just A.
 
+  - Suspect range '+-X' or 'X-+'
+
+    A character range with '+' as one of its endpoints is more often an
+    incorrect attempt to include both '+' and '-' in the set.
+
   - Unnecessarily escaped 'X'
 
     A character is backslash-escaped in a skip set despite not being

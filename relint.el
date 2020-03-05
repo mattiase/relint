@@ -1306,6 +1306,153 @@ character alternative: `[' followed by a regexp-generating expression."
       (setq index (1+ index))
       (setq args (cdr args)))))
 
+(defun relint--pretty-range (from to)
+  (relint--escape-string
+   (if (eq from to)
+       (char-to-string from)
+     (format "%c-%c" from to))
+   t))
+
+(defun relint--intersecting-range (from to ranges)
+  "Return a range in RANGES intersecting [FROM,TO], or nil if none.
+RANGES is a list of (X . Y) representing the interval [X,Y]."
+  (while (and ranges
+              (let ((range (car ranges)))
+                (not (and (<= from (cdr range))
+                          (<= (car range) to)))))
+    (setq ranges (cdr ranges)))
+  (car ranges))
+
+(defun relint--check-rx (item file pos path)
+  "Check the `rx' expression ITEM."
+  (pcase item
+    (`(,(or ': 'seq 'sequence 'and 'or '|
+            'not 'intersection 'repeat '= '>= '**
+            'zero-or-more '0+ '* '*?
+            'one-or-more '1+ '+ '+?
+            'zero-or-one 'opt 'optional '\? ?\s '\?? ??
+            'minimal-match 'maximal-match
+            'group 'submatch
+            'group-n 'submatch-n)
+       . ,args)
+     ;; Form with subforms: recurse.
+     (let ((i 1))
+       (dolist (arg args)
+         (relint--check-rx arg file pos (cons i path))
+         (setq i (1+ i)))))
+
+    (`(,(or 'any 'in 'char 'not-char) . ,args)
+     ;; We don't bother checking for outright errors like "b-a", but
+     ;; look for mistakes that rx itself doesn't complain about. We
+     ;; assume a hand-written rx expression; machine-generated code
+     ;; can break these rules.
+     (let ((i 1)
+           (classes nil)
+           (ranges nil))
+       (dolist (arg args)
+         (cond
+          ((characterp arg)
+           (let ((overlap (relint--intersecting-range arg arg ranges)))
+             (when overlap
+               (relint--warn
+                file pos (cons i path)
+                (if (eq (car overlap) (cdr overlap))
+                    (format-message "Duplicated character `%s'"
+                                    (relint--pretty-range arg arg))
+                  (format-message "Character `%s' included in range `%s'"
+                                  (relint--pretty-range arg arg)
+                                  (relint--pretty-range (car overlap)
+                                                        (cdr overlap)))))))
+           (push (cons arg arg) ranges))
+
+          ((stringp arg)
+           (let ((j 0)
+                 (len (length arg)))
+             (while (< j len)
+               (let ((from (aref arg j)))
+                 (if (and (< (+ j 2) len)
+                          (eq (aref arg (1+ j)) ?-))
+                     (let ((to (aref arg (+ j 2))))
+                       (cond
+                        ;; When people write "+-X" or "X-+" for some
+                        ;; X, they rarely mean a range.
+                        ((or (eq from ?+)
+                             (eq to ?+))
+                         (relint--warn
+                          file pos (cons i path)
+                          (format-message "Suspect range `%s'"
+                                          (relint--pretty-range from to))
+                          arg j))
+                        ((= to from)
+                         (relint--warn
+                          file pos (cons i path)
+                          (format-message
+                           "Single-character range `%s'"
+                           (relint--escape-string (format "%c-%c" from to) t))
+                          arg j))
+                        ((= to (1+ from))
+                         (relint--warn
+                          file pos (cons i path)
+                          (format-message "Two-character range `%s'"
+                                          (relint--pretty-range from to))
+                          arg j)))
+                       (let ((overlap
+                              (relint--intersecting-range from to ranges)))
+                         (when overlap
+                           (relint--warn
+                            file pos (cons i path)
+                            (format-message "Range `%s' overlaps previous `%s'"
+                                            (relint--pretty-range from to)
+                                            (relint--pretty-range
+                                             (car overlap) (cdr overlap)))
+                            arg j)))
+                       (push (cons from to) ranges)
+                       (setq j (+ j 3)))
+                   (when (and (eq from ?-)
+                              (< 0 j (1- len)))
+                     (relint--warn
+                      file pos (cons i path)
+                      (format-message "Literal `-' not first or last")
+                      arg j))
+                   (let ((overlap
+                          (relint--intersecting-range from from ranges)))
+                     (when overlap
+                       (relint--warn
+                        file pos (cons i path)
+                        (if (eq (car overlap) (cdr overlap))
+                            (format-message "Duplicated character `%s'"
+                                            (relint--pretty-range from from))
+                          (format-message
+                           "Character `%s' included in range `%s'"
+                           (relint--pretty-range from from)
+                           (relint--pretty-range (car overlap) (cdr overlap))))
+                        arg j)))
+                   (push (cons from from) ranges)
+                   (setq j (1+ j)))))))
+
+          ((consp arg)
+           (let ((from (car arg))
+                 (to (cdr arg)))
+             (when (and (characterp from) (characterp to)
+                        (<= from to))
+               (let ((overlap
+                      (relint--intersecting-range from to ranges)))
+                 (when overlap
+                   (relint--warn
+                    file pos (cons i path)
+                    (format-message "Range `%s' overlaps previous `%s'"
+                                    (relint--pretty-range from to)
+                                    (relint--pretty-range
+                                     (car overlap) (cdr overlap))))))
+               (push (cons from to) ranges))))
+
+          ((symbolp arg)
+           (when (memq arg classes)
+             (relint--warn file pos (cons i path)
+                           (format-message "Duplicated class `%s'" arg)))
+           (push arg classes)))
+         (setq i (1+ i)))))))
+
 (defun relint--regexp-args-from-doc (doc-string)
   "Extract regexp arguments (as a list of symbols) from DOC-STRING."
   (let ((start 0)
@@ -1755,6 +1902,12 @@ directly."
                                     (cons 'val val))))
                         (list 'expr re-arg))))
               (push (cons name new) relint--variables)))))
+       (`(rx . ,items)
+        (let ((i 1))
+          (while (consp items)
+            (relint--check-rx (car items) file pos (cons i path))
+            (setq items (cdr items))
+            (setq i (1+ i)))))
        (`(font-lock-add-keywords ,_ ,keywords . ,_)
         (relint--check-font-lock-keywords
          keywords (car form) file pos (cons 2 path)))

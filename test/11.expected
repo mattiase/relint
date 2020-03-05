@@ -1,0 +1,27 @@
+11.elisp:7:23: Duplicated character `c' (pos 2)
+  "abc"
+   ..^
+11.elisp:7:26: Duplicated character `b'
+11.elisp:8:30: Single-character range `c-c' (pos 4)
+  "0-9ac-ceg-h3"
+   ....^
+11.elisp:8:34: Two-character range `g-h' (pos 8)
+  "0-9ac-ceg-h3"
+   ........^
+11.elisp:8:37: Character `3' included in range `0-9' (pos 11)
+  "0-9ac-ceg-h3"
+   ...........^
+11.elisp:9:25: Range `f-t' overlaps previous `a-m'
+11.elisp:9:37: Character `s' included in range `f-t' (pos 1)
+  "!s"
+   .^
+11.elisp:10:45: Duplicated class `space'
+11.elisp:11:21: Suspect range `)-+' (pos 4)
+  "0-9()-+"
+   ....^
+11.elisp:12:20: Suspect range `+-.' (pos 3)
+  "0-9+-."
+   ...^
+11.elisp:15:20: Literal `-' not first or last (pos 3)
+  "A-F-K-T"
+   ...^
