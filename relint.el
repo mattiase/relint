@@ -1965,11 +1965,17 @@ directly."
      ;; mutables since all args are evaluated once.
      (let ((index 0))
        (while (consp form)
-         (when (consp (car form))
+         (cond
+          ((consp (car form))
            ;; Check subforms with the assumption that nothing can be mutated,
            ;; since we don't really know what is evaluated when.
            (relint--check-form-recursively-2
             (car form) nil file pos (cons index path)))
+          ((and (memq (car form) '(:regexp :regex))
+                (consp (cdr form)))
+           (relint--check-re (cadr form)
+                             (format "%s parameter" (car form))
+                             file pos (cons (1+ index) path))))
          (setq form (cdr form))
          (setq index (1+ index)))))))
 

@@ -50,3 +50,7 @@
 
 (defun f6 ()
   (f5 "[aa]" "[bb]" "[cc]" "[dd]" "[ee]"))
+
+(defun f7 ()
+  (alpha beta :regexp "[11]")
+  (gamma :regex "[22]" delta))

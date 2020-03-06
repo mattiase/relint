@@ -133,3 +133,9 @@
 2.elisp:52:31: In call to f5: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
+2.elisp:55:26: In :regexp parameter: Duplicated `1' inside character alternative (pos 2)
+  "[11]"
+   ..^
+2.elisp:56:20: In :regex parameter: Duplicated `2' inside character alternative (pos 2)
+  "[22]"
+   ..^
