@@ -1328,8 +1328,10 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
     (setq ranges (cdr ranges)))
   (car ranges))
 
-(defun relint--check-rx (item file pos path)
-  "Check the `rx' expression ITEM."
+(defun relint--check-rx (item file pos path exact-path)
+  "Check the `rx' expression ITEM.
+EXACT-PATH indicates whether PATH leads to ITEM exactly, rather
+than just to a surrounding or producing expression."
   (pcase item
     (`(,(or ': 'seq 'sequence 'and 'or '|
             'not 'intersection 'repeat '= '>= '**
@@ -1343,7 +1345,9 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
      ;; Form with subforms: recurse.
      (let ((i 1))
        (dolist (arg args)
-         (relint--check-rx arg file pos (cons i path))
+         (relint--check-rx arg file pos
+                           (if exact-path (cons i path) path)
+                           exact-path)
          (setq i (1+ i)))))
 
     (`(,(or 'any 'in 'char 'not-char) . ,args)
@@ -1360,7 +1364,7 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
            (let ((overlap (relint--intersecting-range arg arg ranges)))
              (when overlap
                (relint--warn
-                file pos (cons i path)
+                file pos (if exact-path (cons i path) path)
                 (if (eq (car overlap) (cdr overlap))
                     (format-message "Duplicated character `%s'"
                                     (relint--pretty-range arg arg))
@@ -1384,20 +1388,20 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
                         ((or (eq from ?+)
                              (eq to ?+))
                          (relint--warn
-                          file pos (cons i path)
+                          file pos (if exact-path (cons i path) path)
                           (format-message "Suspect range `%s'"
                                           (relint--pretty-range from to))
                           arg j))
                         ((= to from)
                          (relint--warn
-                          file pos (cons i path)
+                          file pos (if exact-path (cons i path) path)
                           (format-message
                            "Single-character range `%s'"
                            (relint--escape-string (format "%c-%c" from to) t))
                           arg j))
                         ((= to (1+ from))
                          (relint--warn
-                          file pos (cons i path)
+                          file pos (if exact-path (cons i path) path)
                           (format-message "Two-character range `%s'"
                                           (relint--pretty-range from to))
                           arg j)))
@@ -1405,7 +1409,7 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
                               (relint--intersecting-range from to ranges)))
                          (when overlap
                            (relint--warn
-                            file pos (cons i path)
+                            file pos (if exact-path (cons i path) path)
                             (format-message "Range `%s' overlaps previous `%s'"
                                             (relint--pretty-range from to)
                                             (relint--pretty-range
@@ -1416,14 +1420,14 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
                    (when (and (eq from ?-)
                               (< 0 j (1- len)))
                      (relint--warn
-                      file pos (cons i path)
+                      file pos (if exact-path (cons i path) path)
                       (format-message "Literal `-' not first or last")
                       arg j))
                    (let ((overlap
                           (relint--intersecting-range from from ranges)))
                      (when overlap
                        (relint--warn
-                        file pos (cons i path)
+                        file pos (if exact-path (cons i path) path)
                         (if (eq (car overlap) (cdr overlap))
                             (format-message "Duplicated character `%s'"
                                             (relint--pretty-range from from))
@@ -1444,7 +1448,7 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
                       (relint--intersecting-range from to ranges)))
                  (when overlap
                    (relint--warn
-                    file pos (cons i path)
+                    file pos (if exact-path (cons i path) path)
                     (format-message "Range `%s' overlaps previous `%s'"
                                     (relint--pretty-range from to)
                                     (relint--pretty-range
@@ -1453,10 +1457,30 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
 
           ((symbolp arg)
            (when (memq arg classes)
-             (relint--warn file pos (cons i path)
+             (relint--warn file pos (if exact-path (cons i path) path)
                            (format-message "Duplicated class `%s'" arg)))
            (push arg classes)))
-         (setq i (1+ i)))))))
+         (setq i (1+ i)))))
+
+    (`(,(or 'regexp 'regex) ,expr)
+     (relint--check-re expr (format-message "rx `%s' form" (car item))
+                       file pos (if exact-path (cons 1 path) path)))
+
+    ;; Evaluate unquote and unquote-splicing forms as if inside a
+    ;; (single) backquote.
+    (`(,(or 'eval '\,) ,expr)
+     (let ((val (relint--eval-or-nil expr)))
+       (when val
+         (relint--check-rx val file pos
+                           (if exact-path (cons 1 path) path)
+                           nil))))
+
+    (`(\,@ ,expr)
+     (let ((items (relint--eval-list expr)))
+       (dolist (form items)
+         (relint--check-rx form file pos
+                           (if exact-path (cons 1 path) path)
+                           nil))))))
 
 (defun relint--regexp-args-from-doc (doc-string)
   "Extract regexp arguments (as a list of symbols) from DOC-STRING."
@@ -1911,9 +1935,11 @@ directly."
        (`(rx . ,items)
         (let ((i 1))
           (while (consp items)
-            (relint--check-rx (car items) file pos (cons i path))
+            (relint--check-rx (car items) file pos (cons i path) t)
             (setq items (cdr items))
             (setq i (1+ i)))))
+       (`(rx-to-string (,(or 'quote '\`) ,arg) . ,_)
+        (relint--check-rx arg file pos (cons 1 (cons 1 path)) t))
        (`(font-lock-add-keywords ,_ ,keywords . ,_)
         (relint--check-font-lock-keywords
          keywords (car form) file pos (cons 2 path)))
