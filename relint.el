@@ -1551,12 +1551,13 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
 
 (defun relint--check-defcustom-type (type name file pos path)
   (pcase type
-    (`(const . ,rest)
-     ;; Skip keywords.
-     (while (and rest (symbolp (car rest)))
-       (setq rest (cddr rest)))
-     (when rest
-       (relint--check-re (car rest) name file pos path)))
+    (`(,(or 'const 'string 'regexp) . ,rest)
+     (while (consp rest)
+       (cond ((eq (car rest) :value)
+              (relint--check-re (cadr rest) name file pos path))
+             ((not (cdr rest))
+              (relint--check-re (car rest) name file pos path)))
+       (setq rest (cddr rest))))
     (`(,(or 'choice 'radio) . ,choices)
      (dolist (choice choices)
        (relint--check-defcustom-type choice name file pos path)))))

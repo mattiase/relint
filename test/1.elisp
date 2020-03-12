@@ -75,6 +75,19 @@
   :group 'relint-test
   :type '(repeat regexp))
 
+(defcustom bad-custom-8 nil
+  "Doc"
+  :type '(choice (regexp :tag "*" :value "[11]")
+                 (string :tag "+" :value "[22]")))
+
+(defcustom bad-custom-9-regexp nil
+  "Doc"
+  :type '(string :tag "+" :value "[33]"))
+
+(defcustom bad-custom-10 nil
+  "regular expression"
+  :type '(string :tag "+" "[44]"))
+
 ;; Special case.
 (defvar compilation-error-regexp-alist-alist
   '((aa "a^a" 1 2)

@@ -138,30 +138,42 @@
 1.elisp:73:35: In bad-custom-7: Duplicated `a' inside character alternative (pos 2)
   "[aa]"
    ..^
-1.elisp:80:11: In compilation-error-regexp-alist-alist (aa): Unescaped literal `^' (pos 1)
+1.elisp:80:9: In bad-custom-8: Duplicated `1' inside character alternative (pos 2)
+  "[11]"
+   ..^
+1.elisp:80:9: In bad-custom-8: Duplicated `2' inside character alternative (pos 2)
+  "[22]"
+   ..^
+1.elisp:85:9: In bad-custom-9-regexp: Duplicated `3' inside character alternative (pos 2)
+  "[33]"
+   ..^
+1.elisp:89:9: In bad-custom-10: Duplicated `4' inside character alternative (pos 2)
+  "[44]"
+   ..^
+1.elisp:93:11: In compilation-error-regexp-alist-alist (aa): Unescaped literal `^' (pos 1)
   "a^a"
    .^
-1.elisp:81:11: In compilation-error-regexp-alist-alist (bb): Unescaped literal `$' (pos 1)
+1.elisp:94:11: In compilation-error-regexp-alist-alist (bb): Unescaped literal `$' (pos 1)
   "b$b"
    .^
-1.elisp:86:8: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
+1.elisp:99:8: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
   "1^"
    .^
-1.elisp:87:8: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
+1.elisp:100:8: In define-generic-mode my-mode: Unescaped literal `^' (pos 1)
   "2^"
    .^
-1.elisp:88:12: In define-generic-mode my-mode: Repetition of repetition (pos 2)
+1.elisp:101:12: In define-generic-mode my-mode: Repetition of repetition (pos 2)
   "b++"
    ..^
-1.elisp:94:6: In call to syntax-propertize-rules: Unescaped literal `$' (pos 0)
+1.elisp:107:6: In call to syntax-propertize-rules: Unescaped literal `$' (pos 0)
   "$1$"
    ^
-1.elisp:95:8: In call to syntax-propertize-rules: Unescaped literal `^' (pos 2)
+1.elisp:108:8: In call to syntax-propertize-rules: Unescaped literal `^' (pos 2)
   "^2^"
    ..^
-1.elisp:100:6: In call to syntax-propertize-precompile-rules: Unescaped literal `$' (pos 0)
+1.elisp:113:6: In call to syntax-propertize-precompile-rules: Unescaped literal `$' (pos 0)
   "$3$"
    ^
-1.elisp:101:8: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
+1.elisp:114:8: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
   "^4^"
    ..^
