@@ -46,3 +46,9 @@
 11.elisp:24:11: Duplicated character `D' (pos 1)
   "DD"
    .^
+11.elisp:29:25: Character `\177' included in range `\000-\177' (pos 0)
+  "\177"
+   ^
+11.elisp:29:32: Character `\240' included in range `\200-\377' (pos 0)
+  "\240"
+   ^

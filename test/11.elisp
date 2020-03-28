@@ -21,4 +21,9 @@
    (rx-to-string `(: bol
                      ,(list 'in "BB")))
    `(rx ,(list 'char "CC"))
-   `(rx ,@(list nonl (list 'any "DD")))))
+   `(rx ,@(list nonl (list 'any "DD"))))
+
+  ;; No error here.
+  (rx (any "\000-\377" ?å) (any "\377" 255))
+  ;; But here.
+  (rx (any "\000-\377" "\177" "\240")))

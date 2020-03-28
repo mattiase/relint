@@ -1383,13 +1383,15 @@ than just to a surrounding or producing expression."
            (push (cons arg arg) ranges))
 
           ((stringp arg)
-           (let ((j 0)
-                 (len (length arg)))
+           (let* ((s (string-to-multibyte arg))
+                  (j 0)
+                  (len (length s)))
              (while (< j len)
-               (let ((from (aref arg j)))
+               (let ((from (aref s j)))
                  (if (and (< (+ j 2) len)
-                          (eq (aref arg (1+ j)) ?-))
-                     (let ((to (aref arg (+ j 2))))
+                          (eq (aref s (1+ j)) ?-))
+                     ;; Range.
+                     (let ((to (aref s (+ j 2))))
                        (cond
                         ;; When people write "+-X" or "X-+" for some
                         ;; X, they rarely mean a range.
@@ -1399,22 +1401,30 @@ than just to a surrounding or producing expression."
                           file pos (if exact-path (cons i path) path)
                           (format-message "Suspect range `%s'"
                                           (relint--pretty-range from to))
-                          arg j))
+                          s j))
                         ((= to from)
                          (relint--warn
                           file pos (if exact-path (cons i path) path)
                           (format-message
                            "Single-character range `%s'"
                            (relint--escape-string (format "%c-%c" from to) t))
-                          arg j))
+                          s j))
                         ((= to (1+ from))
                          (relint--warn
                           file pos (if exact-path (cons i path) path)
                           (format-message "Two-character range `%s'"
                                           (relint--pretty-range from to))
-                          arg j)))
-                       (let ((overlap
-                              (relint--intersecting-range from to ranges)))
+                          s j)))
+                       ;; Take care to split ASCII-raw ranges; they do not
+                       ;; include anything in-between.
+                       (let* ((split (and (<= from #x7f) (>= to #x3fff80)))
+                              (overlap
+                               (if split
+                                   (or (relint--intersecting-range
+                                        from #x7f ranges)
+                                       (relint--intersecting-range
+                                        #x3fff80 to ranges))
+                                 (relint--intersecting-range from to ranges))))
                          (when overlap
                            (relint--warn
                             file pos (if exact-path (cons i path) path)
@@ -1422,15 +1432,21 @@ than just to a surrounding or producing expression."
                                             (relint--pretty-range from to)
                                             (relint--pretty-range
                                              (car overlap) (cdr overlap)))
-                            arg j)))
-                       (push (cons from to) ranges)
+                            s j))
+                         (if split
+                             (progn
+                               (push (cons from #x7f) ranges)
+                               (push (cons #x3fff80 to) ranges))
+                           (push (cons from to) ranges)))
                        (setq j (+ j 3)))
+
+                   ;; Single character.
                    (when (and (eq from ?-)
                               (< 0 j (1- len)))
                      (relint--warn
                       file pos (if exact-path (cons i path) path)
                       (format-message "Literal `-' not first or last")
-                      arg j))
+                      s j))
                    (let ((overlap
                           (relint--intersecting-range from from ranges)))
                      (when overlap
@@ -1443,7 +1459,7 @@ than just to a surrounding or producing expression."
                            "Character `%s' included in range `%s'"
                            (relint--pretty-range from from)
                            (relint--pretty-range (car overlap) (cdr overlap))))
-                        arg j)))
+                        s j)))
                    (push (cons from from) ranges)
                    (setq j (1+ j)))))))
 
