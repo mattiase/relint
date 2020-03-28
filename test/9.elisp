@@ -23,3 +23,8 @@
   (setq-local font-lock-defaults '(("[mm]" . tag)))
   (setq font-lock-defaults '(("[nn]" . tag)))
   (set (make-local-variable 'font-lock-defaults) '(("[oo]" . tag))))
+
+(defun test-9-ge ()
+  (setq-local imenu-generic-expression
+              '((nil "oh" 0)
+                ("*more*" "+a+" 0))))

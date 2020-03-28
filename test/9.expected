@@ -43,3 +43,6 @@
 9.elisp:25:56: In font-lock-defaults (tag): Duplicated `o' inside character alternative (pos 2)
   "[oo]"
    ..^
+9.elisp:30:28: In imenu-generic-expression: Unescaped literal `+' (pos 0)
+  "+a+"
+   ^

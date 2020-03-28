@@ -1152,6 +1152,14 @@ or in the car of an element."
         (relint--check-re-string (car elem) ident file pos p)))))
    form path))
 
+(defun relint--check-imenu-generic-expression (form name file pos path)
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (when (and (consp elem) (consp (cdr elem)) (stringp (cadr elem)))
+       (relint--check-re-string
+        (cadr elem) name file pos (if literal (cons 1 elem-path) elem-path))))
+   form path))
+
 (defun relint--check-compilation-error-regexp-alist-alist (form name
                                                            file pos path)
   (relint--eval-list-iter
@@ -1701,6 +1709,9 @@ directly."
             ((memq name '(font-lock-defaults font-lock-keywords))
              (relint--check-font-lock-keywords expr name
                                                file pos (cons i path)))
+            ((eq name 'imenu-generic-expression)
+             (relint--check-imenu-generic-expression
+              expr name file pos (cons i path)))
             (t
              ;; Invalidate the variable if it was local; otherwise, ignore.
              (let ((local (assq name relint--locals)))
@@ -1948,7 +1959,10 @@ directly."
                (relint--check-re expr name file pos (cons 2 path)))
               ((memq name '(font-lock-defaults font-lock-keywords))
                (relint--check-font-lock-keywords expr name
-                                                 file pos (cons 2 path)))))
+                                                 file pos (cons 2 path)))
+              ((eq name 'imenu-generic-expression)
+               (relint--check-imenu-generic-expression
+                expr name file pos (cons 2 path)))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin
