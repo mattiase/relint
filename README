@@ -36,6 +36,7 @@ skip-syntax-backward.
 
     which returns a list of diagnostics.
 
+
 * Installation
 
   From GNU ELPA (https://elpa.gnu.org/packages/relint.html):
@@ -44,6 +45,7 @@ skip-syntax-backward.
 
   Relint requires the package xr (https://elpa.gnu.org/packages/xr.html);
   it will be installed automatically.
+
 
 * What the diagnostics mean
 
@@ -268,6 +270,7 @@ skip-syntax-backward.
     A string argument to skip-syntax-forward or skip-syntax-backward
     is empty or "^", neither of which makes sense.
 
+
 * Suppressing diagnostics
 
   While relint has been designed to avoid false positives, there may
@@ -284,11 +287,34 @@ skip-syntax-backward.
   comment lines can precede a line of code to eliminate several
   complaints on the same line.
 
+
+* How it works
+
+  Relint uses a combination of ad-hoc rules to locate regexps:
+
+  - Arguments to standard functions taking regexps as arguments,
+    such as re-search-forward, or to user-defined functions
+    whose arguments have regexp-sounding names (like 'regexp')
+
+  - Values of variables believed to be a regexp from their name
+    (ending in '-regexp', for instance), from their doc string,
+    or from their type (for defcustom forms)
+
+  - Assignment to certain standard variables, such as page-delimiter
+
+  It will then try to evaluate expressions statically as far as
+  possible, to arrive at strings which can be analysed. The regexp
+  analysis is done by the xr library.
+
+  This means that if relint complains about something that isn't
+  actually a regexp, some names in your code may be misleading.
+
+
 * Bugs
 
-  The recognition of regexps is done by ad-hoc rules; the simplistic
-  method employed means that many errors will go undetected.
+  The simplistic method employed means that many errors will go
+  undetected, but false warnings are usually rare.
 
-  Still, if you believe that a flawed regexp could have been
-  discovered but wasn't, please report it as a bug. Reports of false
-  positives and crashes are of course equally welcome.
+  If you believe that an error could have been discovered but wasn't,
+  or that an unwarranted complaint could be avoided, please report it
+  as a bug.
