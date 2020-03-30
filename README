@@ -265,10 +265,10 @@ skip-syntax-backward.
 
   To suppress such diagnostics, add a comment on the form
 
-    ;; relint suppression: MESSAGE
+    ;; relint suppression: REGEXP
 
-  on the line before the code where the error occurred. MESSAGE is a
-  substring of the message to be suppressed. Multiple suppression
+  on the line before the code where the error occurred. REGEXP
+  matches the message to be suppressed. Multiple suppression
   comment lines can precede a line of code to eliminate several
   complaints on the same line.
 

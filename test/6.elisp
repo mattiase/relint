@@ -48,8 +48,8 @@
 
 ;; Test suppression
 (defun test-suppression ()
-  ;; relint suppression: Unescaped literal `$'
-  ;; relint suppression: Duplicated `a'
+  ;; relint suppression: Unescaped literal .\$
+  ;; relint suppression: Duplicated .a
   (looking-at "$[aa]"))
 
 ;; Test user-defined regexp-generating functions

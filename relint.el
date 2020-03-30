@@ -209,9 +209,9 @@ or nil if no position could be determined."
   (save-excursion
     ;; On a preceding line, look for a comment on the form
     ;;
-    ;; relint suppression: SUBSTRING
+    ;; relint suppression: REGEXP
     ;;
-    ;; where SUBSTRING is a substring of MESSAGE. There can be
+    ;; where REGEXP matches MESSAGE. There can be
     ;; multiple suppression lines preceding a line of code with
     ;; several errors.
     (goto-char pos)
@@ -221,11 +221,11 @@ or nil if no position could be determined."
               (not (setq matched
                          (and
                           (looking-at (rx (0+ blank) (1+ ";") (0+ blank)
-                                          "relint suppression:" (0+ blank)
+                                          "relint suppression:" (1+ blank)
                                           (group (0+ nonl)
                                                  (not (any "\n" blank)))))
-                          (let ((substr (match-string 1)))
-                            (string-match-p (regexp-quote substr) message)))))
+                          (let ((regexp (match-string 1)))
+                            (string-match-p regexp message)))))
               (looking-at (rx bol
                               (0+ blank) (opt ";" (0+ nonl))
                               eol))
