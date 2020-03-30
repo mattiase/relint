@@ -133,6 +133,18 @@ skip-syntax-backward.
     the repeated sequence, resulting in a*\(?:c[ab]+\)* in the example
     above.
 
+  - End-of-line anchor followed by non-newline
+  - Non-newline followed by line-start anchor
+
+    A pattern that does not match a newline occurs right after an
+    end-of-line anchor ($) or before a line-start anchor (^).
+    This combination can never match.
+
+  - End-of-text anchor followed by non-empty pattern
+
+    A pattern that only matches a non-empty string occurs right after
+    an end-of-text anchor (\'). This combination can never match.
+
   - Uncounted repetition
 
     The construct A\{,\} repeats A zero or more times which was
