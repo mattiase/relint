@@ -1171,6 +1171,50 @@ or in the car of an element."
         file pos (if literal (cons 1 elem-path) elem-path))))
    form path))
 
+(defun relint--extra-file-name-re-checks (string file pos path)
+  "Perform extra checks on STRING assuming it matches file names."
+
+  ;; It would be much easier to do these checks (and more) on the rx
+  ;; representation, but unfortunately xr doesn't return a
+  ;; location-annotated expression right now.
+  (let ((len (length string))
+        (start 0))
+    (while (and (< start len)
+                ;; Skip anything that is NOT one of . ^ $
+                (string-match (rx (* (or (not (any "\\.$^["))
+                                         (seq "\\" anything)
+                                         (seq "[" (opt "^") (opt "]")
+                                              (* (not (any "]")))
+                                              "]"))))
+                              string start))
+      (setq start (match-end 0))
+      (let* ((m (string-match (rx (or "^" "$" (seq "." (opt (any "*+?")))))
+                              string start))
+             (end (match-end 0)))
+        (when (and m (= m start))
+          (pcase (match-string 0 string)
+            ("^" (relint--warn
+                  file pos path
+                  "Use \\` instead of ^ in file-matching regexp"
+                  string start))
+            ("$" (relint--warn
+                  file pos path
+                  "Use \\' instead of $ in file-matching regexp"
+                  string start))
+            ;; We assume that .* etc are intended.
+            ("." (relint--warn
+                  file pos path
+                  (format-message
+                   "Possibly unescaped `.' in file-matching regexp")
+                  string start)))
+          (setq start end))))))
+
+(defun relint--check-file-name-re (form name file pos path)
+  (let ((re (relint--get-string form)))
+    (when re
+      (relint--check-re re name file pos path)
+      (relint--extra-file-name-re-checks re file pos path))))
+
 (defun relint--check-rules-list (form name file pos path)
   "Check a variable on `align-mode-rules-list' format"
   (relint--eval-list-iter
