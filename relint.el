@@ -2125,9 +2125,12 @@ Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
   "Scan all *.el files in DIR for regexp-related errors."
   (interactive "DRelint directory: ")
   (message "Finding .el files in %s..." dir)
-  (let ((files (relint--tree-files dir)))
-    (message "Scanning files...")
-    (relint--scan-files files dir dir (relint--get-error-buffer))))
+  (let* ((files (relint--tree-files dir))
+         (n (length files)))
+    (if (not files)
+        (message "No .el files found.")
+      (message "Scanning %d file%s..." n (if (= n 1) "" "s"))
+      (relint--scan-files files dir dir (relint--get-error-buffer)))))
 
 ;;;###autoload
 (defun relint-current-buffer ()
