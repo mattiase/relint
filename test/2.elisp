@@ -26,7 +26,10 @@
   (split-string-and-unquote s "[vv]")
   (string-trim-left s "[ww]")
   (string-trim-right s "[xx]")
-  (string-trim s "[yy]" "[zz]"))
+  (string-trim s "[yy]" "[zz]")
+  (directory-files s nil "+1")
+  (directory-files-and-attributes s nil "+2")
+  (directory-files-recursively s "+3"))
 
 ;; Test argument names as means of detecting regexps.
 (defun f2 (x1 my-regexp x2 my-regex x3 my-re x4 my-pattern x5 re)

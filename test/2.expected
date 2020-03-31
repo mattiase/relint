@@ -79,63 +79,72 @@
 2.elisp:29:28: In call to string-trim: Duplicated `z' inside character alternative (pos 2)
   "[zz]"
    ..^
-2.elisp:42:17: In call to f2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:30:27: In call to directory-files: Unescaped literal `+' (pos 0)
+  "+1"
+   ^
+2.elisp:31:42: In call to directory-files-and-attributes: Unescaped literal `+' (pos 0)
+  "+2"
+   ^
+2.elisp:32:35: In call to directory-files-recursively: Unescaped literal `+' (pos 0)
+  "+3"
+   ^
+2.elisp:45:17: In call to f2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:42:31: In call to f2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:45:31: In call to f2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:42:45: In call to f2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:45:45: In call to f2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:42:59: In call to f2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:45:59: In call to f2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:42:73: In call to f2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:45:73: In call to f2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:43:17: In call to s2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:46:17: In call to s2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:43:31: In call to s2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:46:31: In call to s2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:43:45: In call to s2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:46:45: In call to s2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:43:59: In call to s2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:46:59: In call to s2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:43:73: In call to s2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:46:73: In call to s2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:44:17: In call to m2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:47:17: In call to m2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:44:31: In call to m2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:47:31: In call to m2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:44:45: In call to m2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:47:45: In call to m2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:44:59: In call to m2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:47:59: In call to m2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:44:73: In call to m2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:47:73: In call to m2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:52:17: In call to f5: Duplicated `b' inside character alternative (pos 2)
+2.elisp:55:17: In call to f5: Duplicated `b' inside character alternative (pos 2)
   "[bb]"
    ..^
-2.elisp:52:24: In call to f5: Duplicated `c' inside character alternative (pos 2)
+2.elisp:55:24: In call to f5: Duplicated `c' inside character alternative (pos 2)
   "[cc]"
    ..^
-2.elisp:52:31: In call to f5: Duplicated `d' inside character alternative (pos 2)
+2.elisp:55:31: In call to f5: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
-2.elisp:55:26: In :regexp parameter: Duplicated `1' inside character alternative (pos 2)
+2.elisp:58:26: In :regexp parameter: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
-2.elisp:56:20: In :regex parameter: Duplicated `2' inside character alternative (pos 2)
+2.elisp:59:20: In :regex parameter: Duplicated `2' inside character alternative (pos 2)
   "[22]"
    ..^
