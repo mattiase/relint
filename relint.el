@@ -1090,13 +1090,16 @@ source."
     (when re
       (relint--check-re-string re name file pos path))))
 
-(defun relint--check-list (form name file pos path)
+(defun relint--check-list (form name file pos path is-file-name)
   "Check a list of regexps."
-  (relint--eval-list-iter
-   (lambda (elem elem-path _literal)
-     (when (stringp elem)
-       (relint--check-re-string elem name file pos elem-path)))
-   form path))
+  (let ((check (if is-file-name
+                   #'relint--check-file-name-re
+                 #'relint--check-re-string)))
+    (relint--eval-list-iter
+     (lambda (elem elem-path _literal)
+       (when (stringp elem)
+         (funcall check elem name file pos elem-path)))
+     form path)))
 
 (defun relint--check-list-any (form name file pos path)
   "Check a list of regexps or conses whose car is a regexp."
@@ -1214,6 +1217,24 @@ or in the car of an element."
     (when re
       (relint--check-re re name file pos path)
       (relint--extra-file-name-re-checks re file pos path))))
+
+(defun relint--check-auto-mode-alist-expr (form name file pos path)
+  "Check a single element added to `auto-mode-alist'."
+  (pcase form
+    (`(quote (,(and (pred stringp) str) . ,_))
+     (relint--check-file-name-re str name file pos (cons 0 (cons 1 path))))
+    (_
+     (let ((val (relint--eval-or-nil form)))
+       (when (and (consp val) (stringp (car val)))
+         (relint--check-file-name-re (car val) name file pos path))))))
+
+(defun relint--check-auto-mode-alist (form name file pos path)
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (relint--check-file-name-re
+      (car elem) name
+      file pos (if literal (cons 0 elem-path) elem-path)))
+   form path))
 
 (defun relint--check-rules-list (form name file pos path)
   "Check a variable on `align-mode-rules-list' format"
@@ -1663,7 +1684,7 @@ than just to a surrounding or producing expression."
          (relint--check-defcustom-type (relint--eval-or-nil type)
                                        name file pos (cons index path)))
         (`(:options ,options)
-         (relint--check-list options name file pos (cons index path))))
+         (relint--check-list options name file pos (cons index path) nil)))
       (setq index (+ index 2))
       (setq args (cddr args)))))
 
@@ -1772,6 +1793,14 @@ directly."
             ((eq name 'imenu-generic-expression)
              (relint--check-imenu-generic-expression
               expr name file pos (cons i path)))
+            ((eq name 'auto-mode-alist)
+             (pcase expr
+               (`(cons ,item auto-mode-alist)
+                (relint--check-auto-mode-alist-expr
+                 item name file pos (cons 1 (cons i path))))
+               (`(append ,items auto-mode-alist)
+                (relint--check-auto-mode-alist
+                 items name file pos (cons 1 (cons i path))))))
             (t
              ;; Invalidate the variable if it was local; otherwise, ignore.
              (let ((local (assq name relint--locals)))
@@ -1787,6 +1816,8 @@ directly."
     (`(push ,expr ,(and (pred symbolp) name))
      ;; Treat (push EXPR NAME) as (setq NAME (cons EXPR NAME)).
      (relint--check-form-recursively-2 expr mutables file pos (cons 1 path))
+     (when (eq name 'auto-mode-alist)
+       (relint--check-auto-mode-alist-expr expr name file pos (cons 1 path)))
      (let ((local (assq name relint--locals)))
        (when local
          (setcdr local
@@ -1949,7 +1980,7 @@ directly."
                                                "-list"))
                                       eos)
                                   (symbol-name name)))
-              (relint--check-list re-arg name file pos (cons 2 path))
+              (relint--check-list re-arg name file pos (cons 2 path) nil)
               (push name relint--checked-variables))
              ((string-match-p (rx "font-lock-keywords")
                               (symbol-name name))
@@ -1960,6 +1991,9 @@ directly."
               (relint--check-compilation-error-regexp-alist-alist
                re-arg name file pos (cons 2 path))
               (push name relint--checked-variables))
+             ((eq name 'auto-mode-alist)
+              (relint--check-auto-mode-alist
+               re-arg name file pos (cons 2 path)))
              ((string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                   "-alist" eos)
                               (symbol-name name))
@@ -2031,7 +2065,7 @@ directly."
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin
                                             file pos (cons 4 path))
-          (relint--check-list auto-mode-list origin file pos (cons 5 path))))
+          (relint--check-list auto-mode-list origin file pos (cons 5 path) t)))
        (`(,(or 'syntax-propertize-rules 'syntax-propertize-precompile-rules)
           . ,rules)
         (let ((index 1))
@@ -2041,6 +2075,9 @@ directly."
                                 (format "call to %s" (car form))
                                 file pos (cons 0 (cons index path))))
             (setq index (1+ index)))))
+       (`(add-to-list 'auto-mode-alist ,elem . ,_)
+        (relint--check-auto-mode-alist-expr
+         elem (car form) file pos (cons 2 path)))
        (`(,name . ,args)
         (let ((alias (assq name relint--alias-defs)))
           (when alias

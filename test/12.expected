@@ -1,0 +1,24 @@
+12.elisp:9:6: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".aa\\'"
+   ^
+12.elisp:9:20: Use \' instead of $ in file-matching regexp (pos 4)
+  "\\.bb$"
+   .....^
+12.elisp:9:24: Use \` instead of ^ in file-matching regexp (pos 0)
+  "^cc.*dd"
+   ^
+12.elisp:11:39: Use \' instead of $ in file-matching regexp (pos 4)
+  "\\.ee$"
+   .....^
+12.elisp:12:10: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".ff\\'"
+   ^
+12.elisp:13:32: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".gg\\'"
+   ^
+12.elisp:14:35: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".hh\\'"
+   ^
+12.elisp:15:35: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".ii\\'"
+   ^

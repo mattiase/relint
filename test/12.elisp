@@ -1,0 +1,16 @@
+;;; Relint test file 12          -*- emacs-lisp -*-
+
+;; Test auto-mode-alist
+
+(define-generic-mode my-mode
+  nil
+  nil
+  nil
+  '(".aa\\'" "\\.bb$" "^cc.*dd"))
+
+(add-to-list 'auto-mode-alist '("\\.ee$" . some-mode))
+(push '(".ff\\'" . some-mode) auto-mode-alist)
+(setq auto-mode-alist (cons '(".gg\\'" . some-mode) auto-mode-alist))
+(setq auto-mode-alist (append '((".hh\\'" . some-mode)
+                                (".ii\\'" . some-mode))
+                              auto-mode-alist))
