@@ -22,3 +22,18 @@
 12.elisp:15:35: Possibly unescaped `.' in file-matching regexp (pos 0)
   ".ii\\'"
    ^
+12.elisp:21:27: Possibly unescaped `.' in file-matching regexp (pos 0)
+  ".txt\\'"
+   ^
+12.elisp:22:48: Use \' instead of $ in file-matching regexp (pos 5)
+  "\\.pas$"
+   ......^
+12.elisp:23:35: Use \` instead of ^ in file-matching regexp (pos 0)
+  "^abc"
+   ^
+12.elisp:24:43: Use \' instead of $ in file-matching regexp (pos 4)
+  "\\.ml$"
+   .....^
+12.elisp:25:41: In call to modify-coding-system-alist: Unescaped literal `+' (pos 0)
+  "+xx$"
+   ^

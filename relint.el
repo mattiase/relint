@@ -1887,7 +1887,6 @@ directly."
                'posix-looking-at 'posix-search-backward 'posix-search-forward
                'posix-string-match
                'search-forward-regexp 'search-backward-regexp
-               'load-history-filename-element
                'kill-matching-buffers
                'keep-lines 'flush-lines 'how-many)
           ,re-arg . ,_)
@@ -1895,9 +1894,14 @@ directly."
                      (memq re-arg relint--checked-variables))
           (relint--check-re re-arg (format "call to %s" (car form))
                             file pos (cons 1 path))))
+       (`(load-history-filename-element ,re-arg)
+        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+                                    file pos (cons 1 path)))
+       (`(directory-files-recursively ,_ ,re-arg . ,_)
+        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+                                    file pos (cons 2 path)))
        (`(,(or 'split-string 'split-string-and-unquote
-               'string-trim-left 'string-trim-right 'string-trim
-               'directory-files-recursively)
+               'string-trim-left 'string-trim-right 'string-trim)
           ,_ ,re-arg . ,rest)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
@@ -1921,8 +1925,8 @@ directly."
                                 file pos (cons 4 path))))))
        (`(,(or 'directory-files 'directory-files-and-attributes)
           ,_ ,_ ,re-arg . ,_)
-        (relint--check-re re-arg (format "call to %s" (car form))
-                          file pos (cons 3 path)))
+        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+                                    file pos (cons 3 path)))
        (`(,(or 'skip-chars-forward 'skip-chars-backward)
           ,skip-arg . ,_)
         (let ((str (relint--get-string skip-arg)))
@@ -2078,6 +2082,12 @@ directly."
        (`(add-to-list 'auto-mode-alist ,elem . ,_)
         (relint--check-auto-mode-alist-expr
          elem (car form) file pos (cons 2 path)))
+       (`(modify-coding-system-alist ,type ,re-arg ,_)
+        (funcall
+         (if (eq (relint--eval-or-nil type) 'file)
+             #'relint--check-file-name-re
+           #'relint--check-re)
+         re-arg (format "call to %s" (car form)) file pos (cons 2 path)))
        (`(,name . ,args)
         (let ((alias (assq name relint--alias-defs)))
           (when alias
