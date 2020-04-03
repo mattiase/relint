@@ -91,6 +91,7 @@
 (require 'xr)
 (require 'compile)
 (require 'cl-lib)
+(require 'thunk)
 
 (defvar relint--error-buffer)
 (defvar relint--quiet)
@@ -263,7 +264,8 @@ or nil if no position could be determined."
          (error-pos (and str-idx (relint--string-pos expr-pos str-idx))))
     (if (relint--suppression expr-pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
-      (funcall relint--report-function file expr-pos error-pos message
+      (funcall relint--report-function
+               (thunk-force file) expr-pos error-pos message
                str str-idx severity)))
   (setq relint--error-count (1+ relint--error-count)))
 
@@ -2191,8 +2193,11 @@ Return a list of (FORM . STARTING-POSITION)."
   (with-temp-buffer
     (emacs-lisp-mode)
     (insert-file-contents file)
-    (relint--scan-current-buffer (file-relative-name file base-dir))))
-        
+    ;; Call file-relative-name lazily -- it is surprisingly expensive
+    ;; on macOS, and the result only used for diagnostics output.
+    (relint--scan-current-buffer
+     (thunk-delay (file-relative-name file base-dir)))))
+
 (defvar relint-last-target nil
   "The last file, directory or buffer on which relint was run.")
 
