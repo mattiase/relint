@@ -2272,7 +2272,7 @@ Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
       (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
     (relint--init buffer default-directory error-buffer quiet)
     (save-excursion
-      (relint--scan-current-buffer (buffer-name))))
+      (relint--scan-current-buffer (thunk-delay (buffer-name)))))
   (relint--finish))
 
 
