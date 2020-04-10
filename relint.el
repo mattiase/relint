@@ -320,6 +320,9 @@ or nil if no position could be determined."
 (defun relint--check-re-string (re name file pos path)
   (relint--check-string re #'xr-lint name file pos path))
   
+(defun relint--check-file-re-string (re name file pos path)
+  (relint--check-string re (lambda (x) (xr-lint x 'file)) name file pos path))
+  
 (defun relint--check-syntax-string (syntax name file pos path)
   (relint--check-string syntax #'relint--syntax-string-lint name file pos path))
 
@@ -1176,59 +1179,20 @@ or in the car of an element."
         file pos (if literal (cons 1 elem-path) elem-path))))
    form path))
 
-(defun relint--extra-file-name-re-checks (string file pos path)
-  "Perform extra checks on STRING assuming it matches file names."
-
-  ;; It would be much easier to do these checks (and more) on the rx
-  ;; representation, but unfortunately xr doesn't return a
-  ;; location-annotated expression right now.
-  (let ((len (length string))
-        (start 0))
-    (while (and (< start len)
-                ;; Skip anything that is NOT one of . ^ $
-                (string-match (rx (* (or (not (any "\\.$^["))
-                                         (seq "\\" anything)
-                                         (seq "[" (opt "^") (opt "]")
-                                              (* (not (any "]")))
-                                              "]"))))
-                              string start))
-      (setq start (match-end 0))
-      (let* ((m (string-match (rx (or "^" "$" (seq "." (opt (any "*+?")))))
-                              string start))
-             (end (match-end 0)))
-        (when (and m (= m start))
-          (pcase (match-string 0 string)
-            ("^" (relint--warn
-                  file pos path
-                  "Use \\` instead of ^ in file-matching regexp"
-                  string start))
-            ("$" (relint--warn
-                  file pos path
-                  "Use \\' instead of $ in file-matching regexp"
-                  string start))
-            ;; We assume that .* etc are intended.
-            ("." (relint--warn
-                  file pos path
-                  (format-message
-                   "Possibly unescaped `.' in file-matching regexp")
-                  string start)))
-          (setq start end))))))
-
 (defun relint--check-file-name-re (form name file pos path)
   (let ((re (relint--get-string form)))
     (when re
-      (relint--check-re re name file pos path)
-      (relint--extra-file-name-re-checks re file pos path))))
+      (relint--check-file-re-string re name file pos path))))
 
 (defun relint--check-auto-mode-alist-expr (form name file pos path)
   "Check a single element added to `auto-mode-alist'."
   (pcase form
     (`(quote (,(and (pred stringp) str) . ,_))
-     (relint--check-file-name-re str name file pos (cons 0 (cons 1 path))))
+     (relint--check-file-re-string str name file pos (cons 0 (cons 1 path))))
     (_
      (let ((val (relint--eval-or-nil form)))
        (when (and (consp val) (stringp (car val)))
-         (relint--check-file-name-re (car val) name file pos path))))))
+         (relint--check-file-re-string (car val) name file pos path))))))
 
 (defun relint--check-auto-mode-alist (form name file pos path)
   (relint--eval-list-iter
