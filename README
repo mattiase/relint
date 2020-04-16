@@ -71,11 +71,17 @@ skip-syntax-backward.
     in order to include a literal backslash.
   
   - Repetition of repetition
+  - Repetition of option
+  - Optional repetition
+  - Optional option
   
     A repetition construct is applied to an expression that is already
-    repeated, such as a*+ (? counts as repetition here). Such
-    expressions can be written with a single repetition and often
-    indicate a different mistake, such as missing backslashes.
+    repeated, such as a*+ or \(x?\)?. These expressions can be written
+    with a single repetition and often indicate a different mistake,
+    perhaps a missing backslash.
+
+    When a repetition construct is ? or ??, it is termed 'option'
+    instead; the principle is the same.
 
   - Reversed range 'Y-X' matches nothing
 
@@ -186,12 +192,14 @@ skip-syntax-backward.
     intended as part of a range.
 
   - Repetition of zero-width assertion
+  - Optional zero-width assertion
 
     A repetition operator was applied to a zero-width assertion, like
     ^ or \<, which is completely pointless. The error may be a missing
     escaping backslash.
 
   - Repetition of expression matching an empty string
+  - Optional expression matching an empty string
 
     A repetition operator was applied to a sub-expression that could
     match the empty string; this is not necessarily wrong, but such
