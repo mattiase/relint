@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.15
-;; Package-Requires: ((xr "1.17") (emacs "26.1"))
+;; Version: 1.16
+;; Package-Requires: ((xr "1.19") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -29,6 +29,12 @@
 
 ;;; News:
 
+;; Version 1.16:
+;; - Suppression comments now use regexp matching of messages
+;; - New filename-specific checks in calls to `directory-files' etc
+;; - Check some keyword arguments (:regexp and :regex)
+;; - Improved rx checks
+;; - `relint-directory' now displays number of files found
 ;; Version 1.15:
 ;; - Improved position accuracy in various lists of regexps
 ;; - Check for mistake in rx `any' forms
