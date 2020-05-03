@@ -1355,7 +1355,7 @@ character alternative: `[' followed by a regexp-generating expression."
    (if (eq from to)
        (char-to-string from)
      (format "%c-%c" from to))
-   t))
+   nil))
 
 (defun relint--intersecting-range (from to ranges)
   "Return a range in RANGES intersecting [FROM,TO], or nil if none.
@@ -1438,7 +1438,7 @@ than just to a surrounding or producing expression."
                           file pos (if exact-path (cons i path) path)
                           (format-message
                            "Single-character range `%s'"
-                           (relint--escape-string (format "%c-%c" from to) t))
+                           (relint--escape-string (format "%c-%c" from to) nil))
                           s j))
                         ((= to (1+ from))
                          (relint--warn
