@@ -283,7 +283,8 @@ or nil if no position could be determined."
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
-   (rx (any cntrl "\177-\377" ?\\ ?\"))
+   ;; Use pair notation for raw chars; "\200-\377" is buggy in Emacs 26.
+   (rx (any cntrl ?\177 (#x3fff80 . #x3fffff) ?\\ ?\"))
    (lambda (s)
      (let ((c (logand (string-to-char s) #xff)))
        (or (cdr (assq c '((?\b . "\\b")
