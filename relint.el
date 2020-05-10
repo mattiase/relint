@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.16
+;; Version: 1.17
 ;; Package-Requires: ((xr "1.19") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
@@ -29,6 +29,8 @@
 
 ;;; News:
 
+;; Version 1.17:
+;; - Fixed message display on Emacs 26
 ;; Version 1.16:
 ;; - Suppression comments now use regexp matching of messages
 ;; - New filename-specific checks in calls to `directory-files' etc
