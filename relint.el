@@ -1420,7 +1420,9 @@ than just to a surrounding or producing expression."
            (push (cons arg arg) ranges))
 
           ((stringp arg)
-           (let* ((s (string-to-multibyte arg))
+           ;; `string-to-multibyte' was marked obsolete in Emacs 26,
+           ;; but no longer is.
+           (let* ((s (with-no-warnings (string-to-multibyte arg)))
                   (j 0)
                   (len (length s)))
              (while (< j len)
