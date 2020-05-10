@@ -52,3 +52,10 @@
 11.elisp:29:32: Character `\240' included in range `\200-\377' (pos 0)
   "\240"
    ^
+11.elisp:31:18: Character `m' included in range `a-z'
+11.elisp:32:19: Range `\000-\377' overlaps previous `a-f' (pos 0)
+  "\000-\377"
+   ^
+11.elisp:33:25: Range `\000-\377' overlaps previous `\240-\277' (pos 0)
+  "\000-\377"
+   ^
