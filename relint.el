@@ -107,14 +107,16 @@
 (defvar relint--suppression-count)
 
 (defun relint--get-error-buffer ()
-  (let ((buf (get-buffer-create "*relint*")))
-    (with-current-buffer buf
-      (unless (eq major-mode 'relint-mode)
-        (relint-mode))
-      (let ((inhibit-read-only t))
-        (compilation-forget-errors)
-        (erase-buffer)))
-    buf))
+  "Buffer to which errors are printed, or nil if noninteractive."
+  (and (not noninteractive)
+       (let ((buf (get-buffer-create "*relint*")))
+         (with-current-buffer buf
+           (unless (eq major-mode 'relint-mode)
+             (relint-mode))
+           (let ((inhibit-read-only t))
+             (compilation-forget-errors)
+             (erase-buffer)))
+         buf)))
 
 (defun relint--add-to-error-buffer (string)
   (with-current-buffer relint--error-buffer
