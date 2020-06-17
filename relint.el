@@ -99,12 +99,6 @@
 (require 'xr)
 (require 'compile)
 (require 'cl-lib)
-(require 'thunk)
-
-(defvar relint--error-buffer)
-(defvar relint--quiet)
-(defvar relint--error-count)
-(defvar relint--suppression-count)
 
 (defun relint--get-error-buffer ()
   "Buffer to which errors are printed, or nil if noninteractive."
@@ -118,8 +112,8 @@
              (erase-buffer)))
          buf)))
 
-(defun relint--add-to-error-buffer (string)
-  (with-current-buffer relint--error-buffer
+(defun relint--add-to-error-buffer (error-buffer string)
+  (with-current-buffer error-buffer
     (goto-char (point-max))
     (let ((inhibit-read-only t))
       (insert string))))
@@ -244,19 +238,21 @@ or nil if no position could be determined."
         (forward-line -1))
       matched)))
 
-(defun relint--output-message (string)
-  (if relint--error-buffer
-      (relint--add-to-error-buffer (concat string "\n"))
+(defun relint--output-message (error-buffer string)
+  (if error-buffer
+      (relint--add-to-error-buffer error-buffer (concat string "\n"))
     (message "%s" string)))
 
-(defun relint--output-report (file expr-pos error-pos message str str-idx
-                              severity)
+(cl-defun relint--output-report (error-buffer file
+                                 (message expr-pos error-pos
+                                  str str-idx severity))
   (let* ((pos (or error-pos expr-pos))
          (line (line-number-at-pos pos t))
          (col (save-excursion
                 (goto-char pos)
                 (1+ (current-column)))))
     (relint--output-message
+     error-buffer
      (concat
       (format "%s:%d:%d: " file line col)
       (and (eq severity 'error) "error: ")
@@ -265,25 +261,27 @@ or nil if no position could be determined."
       (and str     (format "\n  %s" (relint--quote-string str)))
       (and str-idx (format "\n   %s" (relint--caret-string str str-idx)))))))
   
-(defvar relint--report-function #'relint--output-report
-  "Function accepting a found complaint, taking the arguments
-(FILE EXPR-POS ERROR-POS MESSAGE STRING STRING-IDX SEVERITY).")
+(defun relint--output-complaints (buffer file complaints error-buffer)
+  (with-current-buffer buffer
+    (dolist (complaint complaints)
+      (relint--output-report error-buffer file complaint))))
 
-(defun relint--report (file start-pos path message str str-idx severity)
+(defvar relint--suppression-count)
+(defvar relint--complaints)
+
+(defun relint--report (start-pos path message str str-idx severity)
   (let* ((expr-pos (relint--pos-from-start-pos-path start-pos path))
          (error-pos (and str-idx (relint--string-pos expr-pos str-idx))))
     (if (relint--suppression expr-pos message)
         (setq relint--suppression-count (1+ relint--suppression-count))
-      (funcall relint--report-function
-               (thunk-force file) expr-pos error-pos message
-               str str-idx severity)))
-  (setq relint--error-count (1+ relint--error-count)))
+      (push (list message expr-pos error-pos str str-idx severity)
+            relint--complaints))))
 
-(defun relint--warn (file start-pos path message &optional str str-idx)
-  (relint--report file start-pos path message str str-idx 'warning))
+(defun relint--warn (start-pos path message &optional str str-idx)
+  (relint--report start-pos path message str str-idx 'warning))
 
-(defun relint--err (file start-pos path message &optional str str-idx)
-  (relint--report file start-pos path message str str-idx 'error))
+(defun relint--err (start-pos path message &optional str str-idx)
+  (relint--report start-pos path message str str-idx 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -311,31 +309,30 @@ or nil if no position could be determined."
          (length (relint--escape-string (substring string 0 pos) t))))
     (concat (make-string quoted-pos ?.) "^")))
 
-(defun relint--check-string (string checker name file pos path)
+(defun relint--check-string (string checker name pos path)
   (let ((complaints
          (condition-case err
              (funcall checker string)
            (error
-            (relint--err file pos path
+            (relint--err pos path
                          (format "In %s: %s" name (cadr err))
                          string nil)
             nil))))
     (dolist (c complaints)
-      (relint--warn file pos path
-                    (format "In %s: %s" name (cdr c))
+      (relint--warn pos path (format "In %s: %s" name (cdr c))
                     string (car c)))))
 
-(defun relint--check-skip-set (skip-set-string name file pos path)
-  (relint--check-string skip-set-string #'xr-skip-set-lint name file pos path))
+(defun relint--check-skip-set (skip-set-string name pos path)
+  (relint--check-string skip-set-string #'xr-skip-set-lint name pos path))
 
-(defun relint--check-re-string (re name file pos path)
-  (relint--check-string re #'xr-lint name file pos path))
+(defun relint--check-re-string (re name pos path)
+  (relint--check-string re #'xr-lint name pos path))
   
-(defun relint--check-file-re-string (re name file pos path)
-  (relint--check-string re (lambda (x) (xr-lint x 'file)) name file pos path))
+(defun relint--check-file-re-string (re name pos path)
+  (relint--check-string re (lambda (x) (xr-lint x 'file)) name pos path))
   
-(defun relint--check-syntax-string (syntax name file pos path)
-  (relint--check-string syntax #'relint--syntax-string-lint name file pos path))
+(defun relint--check-syntax-string (syntax name pos path)
+  (relint--check-string syntax #'relint--syntax-string-lint name pos path))
 
 (defconst relint--syntax-codes
   '((?-  . whitespace)
@@ -975,7 +972,6 @@ not be evaluated safely."
                             body)))
        
        (t
-        ;;(relint--output-message (format "eval rule missing: %S" form))
         (throw 'relint-eval 'no-value))))))
 
 (defun relint--eval-or-nil (form)
@@ -1101,12 +1097,12 @@ source."
   (let ((val (relint--eval-or-nil form)))
     (and (stringp val) val)))
 
-(defun relint--check-re (form name file pos path)
+(defun relint--check-re (form name pos path)
   (let ((re (relint--get-string form)))
     (when re
-      (relint--check-re-string re name file pos path))))
+      (relint--check-re-string re name pos path))))
 
-(defun relint--check-list (form name file pos path is-file-name)
+(defun relint--check-list (form name pos path is-file-name)
   "Check a list of regexps."
   (let ((check (if is-file-name
                    #'relint--check-file-name-re
@@ -1114,53 +1110,53 @@ source."
     (relint--eval-list-iter
      (lambda (elem elem-path _literal)
        (when (stringp elem)
-         (funcall check elem name file pos elem-path)))
+         (funcall check elem name pos elem-path)))
      form path)))
 
-(defun relint--check-list-any (form name file pos path)
+(defun relint--check-list-any (form name pos path)
   "Check a list of regexps or conses whose car is a regexp."
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (cond
       ((stringp elem)
-       (relint--check-re-string elem name file pos elem-path))
+       (relint--check-re-string elem name pos elem-path))
       ((and (consp elem)
             (stringp (car elem)))
-       (relint--check-re-string (car elem) name file pos
+       (relint--check-re-string (car elem) name pos
                                 (if literal (cons 0 elem-path) elem-path)))))
    form path))
 
-(defun relint--check-alist-any (form name file pos path)
+(defun relint--check-alist-any (form name pos path)
   "Check an alist whose cars or cdrs may be regexps."
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (when (consp elem)
        (when (stringp (car elem))
-         (relint--check-re-string (car elem) name file pos
+         (relint--check-re-string (car elem) name pos
                                   (if literal (cons 0 elem-path) elem-path)))
        (when (stringp (cdr elem))
-         (relint--check-re-string (cdr elem) name file pos
+         (relint--check-re-string (cdr elem) name pos
                                   (if literal (cons 1 elem-path) elem-path)))))
    form path))
 
-(defun relint--check-alist-cdr (form name file pos path)
+(defun relint--check-alist-cdr (form name pos path)
   "Check an alist whose cdrs are regexps."
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (when (and (consp elem)
                 (stringp (cdr elem)))
-       (relint--check-re-string (cdr elem) name file pos
+       (relint--check-re-string (cdr elem) name pos
                                 (if literal (cons 1 elem-path) elem-path))))
    form path))
 
-(defun relint--check-font-lock-keywords (form name file pos path)
+(defun relint--check-font-lock-keywords (form name pos path)
   "Check a font-lock-keywords list.  A regexp can be found in an element,
 or in the car of an element."
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
     (cond
      ((stringp elem)
-      (relint--check-re-string elem name file pos elem-path))
+      (relint--check-re-string elem name pos elem-path))
      ((and (consp elem)
            (stringp (car elem)))
       (let* ((tag (and (symbolp (cdr elem)) (cdr elem)))
@@ -1168,52 +1164,51 @@ or in the car of an element."
              (p (if literal
                     (cons 0 elem-path)
                   elem-path)))
-        (relint--check-re-string (car elem) ident file pos p)))))
+        (relint--check-re-string (car elem) ident pos p)))))
    form path))
 
-(defun relint--check-imenu-generic-expression (form name file pos path)
+(defun relint--check-imenu-generic-expression (form name pos path)
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (when (and (consp elem) (consp (cdr elem)) (stringp (cadr elem)))
        (relint--check-re-string
-        (cadr elem) name file pos (if literal (cons 1 elem-path) elem-path))))
+        (cadr elem) name pos (if literal (cons 1 elem-path) elem-path))))
    form path))
 
-(defun relint--check-compilation-error-regexp-alist-alist (form name
-                                                           file pos path)
+(defun relint--check-compilation-error-regexp-alist-alist (form name pos path)
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (when (cadr elem)
        (relint--check-re-string
         (cadr elem)
         (format "%s (%s)" name (car elem))
-        file pos (if literal (cons 1 elem-path) elem-path))))
+        pos (if literal (cons 1 elem-path) elem-path))))
    form path))
 
-(defun relint--check-file-name-re (form name file pos path)
+(defun relint--check-file-name-re (form name pos path)
   (let ((re (relint--get-string form)))
     (when re
-      (relint--check-file-re-string re name file pos path))))
+      (relint--check-file-re-string re name pos path))))
 
-(defun relint--check-auto-mode-alist-expr (form name file pos path)
+(defun relint--check-auto-mode-alist-expr (form name pos path)
   "Check a single element added to `auto-mode-alist'."
   (pcase form
     (`(quote (,(and (pred stringp) str) . ,_))
-     (relint--check-file-re-string str name file pos (cons 0 (cons 1 path))))
+     (relint--check-file-re-string str name pos (cons 0 (cons 1 path))))
     (_
      (let ((val (relint--eval-or-nil form)))
        (when (and (consp val) (stringp (car val)))
-         (relint--check-file-re-string (car val) name file pos path))))))
+         (relint--check-file-re-string (car val) name pos path))))))
 
-(defun relint--check-auto-mode-alist (form name file pos path)
+(defun relint--check-auto-mode-alist (form name pos path)
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
      (relint--check-file-name-re
       (car elem) name
-      file pos (if literal (cons 0 elem-path) elem-path)))
+      pos (if literal (cons 0 elem-path) elem-path)))
    form path))
 
-(defun relint--check-rules-list (form name file pos path)
+(defun relint--check-rules-list (form name pos path)
   "Check a variable on `align-mode-rules-list' format"
   (relint--eval-list-iter
    (lambda (rule rule-path literal)
@@ -1225,7 +1220,7 @@ or in the car of an element."
            (when (and (consp clause) (eq (car clause) 'regexp)
                       (stringp (cdr clause)))
              (relint--check-re-string 
-              (cdr clause) (format "%s (%s)" name rule-name) file pos
+              (cdr clause) (format "%s (%s)" name rule-name) pos
               (if literal (cons 1 (cons i rule-path)) rule-path)))
            (setq i (1+ i))))))
    form path))
@@ -1288,15 +1283,15 @@ EXPANDED is a list of expanded functions, to prevent recursion."
                                   x (cons head expanded)))
                                (caddr fun))))))))))
 
-(defun relint--check-non-regexp-provenance (skip-function form file pos path)
+(defun relint--check-non-regexp-provenance (skip-function form pos path)
   (let ((reg-gen (relint--regexp-generators form nil)))
     (when reg-gen
       (relint--warn
-       file pos path
+       pos path
        (format-message "`%s' cannot be used for arguments to `%s'"
                        (car reg-gen) skip-function)))))
 
-(defun relint--check-format-mixup (template args file pos path)
+(defun relint--check-format-mixup (template args pos path)
   "Look for a format expression that suggests insertion of a regexp
 into a character alternative: [%s] where the corresponding format
 parameter is regexp-generating."
@@ -1329,7 +1324,7 @@ parameter is regexp-generating."
           (let ((reg-gen (relint--regexp-generators (nth index args) nil)))
             (when reg-gen
               (relint--warn
-               file pos (cons (+ index 2) path)
+               pos (cons (+ index 2) path)
                (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
                 (car reg-gen))))))
@@ -1337,7 +1332,7 @@ parameter is regexp-generating."
           (setq index (1+ index)))
         (setq start next)))))
 
-(defun relint--check-concat-mixup (args file pos path)
+(defun relint--check-concat-mixup (args pos path)
   "Look for concat args that suggest insertion of a regexp into a
 character alternative: `[' followed by a regexp-generating expression."
   (let ((index 1))
@@ -1354,7 +1349,7 @@ character alternative: `[' followed by a regexp-generating expression."
           (let ((reg-gen (relint--regexp-generators (cadr args) nil)))
             (when reg-gen
               (relint--warn
-               file pos (cons (1+ index) path)
+               pos (cons (1+ index) path)
                (format-message
                 "Value from `%s' cannot be spliced into `[...]'"
                 (car reg-gen)))))))
@@ -1378,7 +1373,7 @@ RANGES is a list of (X . Y) representing the interval [X,Y]."
     (setq ranges (cdr ranges)))
   (car ranges))
 
-(defun relint--check-rx (item file pos path exact-path)
+(defun relint--check-rx (item pos path exact-path)
   "Check the `rx' expression ITEM.
 EXACT-PATH indicates whether PATH leads to ITEM exactly, rather
 than just to a surrounding or producing expression."
@@ -1395,8 +1390,7 @@ than just to a surrounding or producing expression."
      ;; Form with subforms: recurse.
      (let ((i 1))
        (dolist (arg args)
-         (relint--check-rx arg file pos
-                           (if exact-path (cons i path) path)
+         (relint--check-rx arg pos (if exact-path (cons i path) path)
                            exact-path)
          (setq i (1+ i)))))
 
@@ -1414,7 +1408,7 @@ than just to a surrounding or producing expression."
            (let ((overlap (relint--intersecting-range arg arg ranges)))
              (when overlap
                (relint--warn
-                file pos (if exact-path (cons i path) path)
+                pos (if exact-path (cons i path) path)
                 (if (eq (car overlap) (cdr overlap))
                     (format-message "Duplicated character `%s'"
                                     (relint--pretty-range arg arg))
@@ -1442,20 +1436,20 @@ than just to a surrounding or producing expression."
                         ((or (eq from ?+)
                              (eq to ?+))
                          (relint--warn
-                          file pos (if exact-path (cons i path) path)
+                          pos (if exact-path (cons i path) path)
                           (format-message "Suspect range `%s'"
                                           (relint--pretty-range from to))
                           s j))
                         ((= to from)
                          (relint--warn
-                          file pos (if exact-path (cons i path) path)
+                          pos (if exact-path (cons i path) path)
                           (format-message
                            "Single-character range `%s'"
                            (relint--escape-string (format "%c-%c" from to) nil))
                           s j))
                         ((= to (1+ from))
                          (relint--warn
-                          file pos (if exact-path (cons i path) path)
+                          pos (if exact-path (cons i path) path)
                           (format-message "Two-character range `%s'"
                                           (relint--pretty-range from to))
                           s j)))
@@ -1471,7 +1465,7 @@ than just to a surrounding or producing expression."
                                  (relint--intersecting-range from to ranges))))
                          (when overlap
                            (relint--warn
-                            file pos (if exact-path (cons i path) path)
+                            pos (if exact-path (cons i path) path)
                             (format-message "Range `%s' overlaps previous `%s'"
                                             (relint--pretty-range from to)
                                             (relint--pretty-range
@@ -1488,14 +1482,14 @@ than just to a surrounding or producing expression."
                    (when (and (eq from ?-)
                               (< 0 j (1- len)))
                      (relint--warn
-                      file pos (if exact-path (cons i path) path)
+                      pos (if exact-path (cons i path) path)
                       (format-message "Literal `-' not first or last")
                       s j))
                    (let ((overlap
                           (relint--intersecting-range from from ranges)))
                      (when overlap
                        (relint--warn
-                        file pos (if exact-path (cons i path) path)
+                        pos (if exact-path (cons i path) path)
                         (if (eq (car overlap) (cdr overlap))
                             (format-message "Duplicated character `%s'"
                                             (relint--pretty-range from from))
@@ -1516,7 +1510,7 @@ than just to a surrounding or producing expression."
                       (relint--intersecting-range from to ranges)))
                  (when overlap
                    (relint--warn
-                    file pos (if exact-path (cons i path) path)
+                    pos (if exact-path (cons i path) path)
                     (format-message "Range `%s' overlaps previous `%s'"
                                     (relint--pretty-range from to)
                                     (relint--pretty-range
@@ -1525,30 +1519,26 @@ than just to a surrounding or producing expression."
 
           ((symbolp arg)
            (when (memq arg classes)
-             (relint--warn file pos (if exact-path (cons i path) path)
+             (relint--warn pos (if exact-path (cons i path) path)
                            (format-message "Duplicated class `%s'" arg)))
            (push arg classes)))
          (setq i (1+ i)))))
 
     (`(,(or 'regexp 'regex) ,expr)
      (relint--check-re expr (format-message "rx `%s' form" (car item))
-                       file pos (if exact-path (cons 1 path) path)))
+                       pos (if exact-path (cons 1 path) path)))
 
     ;; Evaluate unquote and unquote-splicing forms as if inside a
     ;; (single) backquote.
     (`(,(or 'eval '\,) ,expr)
      (let ((val (relint--eval-or-nil expr)))
        (when val
-         (relint--check-rx val file pos
-                           (if exact-path (cons 1 path) path)
-                           nil))))
+         (relint--check-rx val pos (if exact-path (cons 1 path) path) nil))))
 
     (`(\,@ ,expr)
      (let ((items (relint--eval-list expr)))
        (dolist (form items)
-         (relint--check-rx form file pos
-                           (if exact-path (cons 1 path) path)
-                           nil))))))
+         (relint--check-rx form pos (if exact-path (cons 1 path) path) nil))))))
 
 (defun relint--regexp-args-from-doc (doc-string)
   "Extract regexp arguments (as a list of symbols) from DOC-STRING."
@@ -1564,7 +1554,7 @@ than just to a surrounding or producing expression."
       (setq start (match-end 0)))
     found))
 
-(defun relint--check-form-recursively-1 (form file pos path)
+(defun relint--check-form-recursively-1 (form pos path)
   (pcase form
     (`(,(or 'defun 'defmacro 'defsubst)
        ,name ,args . ,body)
@@ -1637,33 +1627,33 @@ than just to a surrounding or producing expression."
        (while (consp form)
          (when (consp (car form))
            (relint--check-form-recursively-1
-            (car form) file pos (cons index path)))
+            (car form) pos (cons index path)))
          (setq form (cdr form))
          (setq index (1+ index)))))))
 
-(defun relint--check-defcustom-type (type name file pos path)
+(defun relint--check-defcustom-type (type name pos path)
   (pcase type
     (`(,(or 'const 'string 'regexp) . ,rest)
      (while (consp rest)
        (cond ((eq (car rest) :value)
-              (relint--check-re (cadr rest) name file pos path))
+              (relint--check-re (cadr rest) name pos path))
              ((not (cdr rest))
-              (relint--check-re (car rest) name file pos path)))
+              (relint--check-re (car rest) name pos path)))
        (setq rest (cddr rest))))
     (`(,(or 'choice 'radio) . ,choices)
      (dolist (choice choices)
-       (relint--check-defcustom-type choice name file pos path)))))
+       (relint--check-defcustom-type choice name pos path)))))
 
-(defun relint--check-defcustom-re (form name file pos path)
+(defun relint--check-defcustom-re (form name pos path)
   (let ((args (nthcdr 4 form))
         (index 5))
     (while (consp args)
       (pcase args
         (`(:type ,type)
          (relint--check-defcustom-type (relint--eval-or-nil type)
-                                       name file pos (cons index path)))
+                                       name pos (cons index path)))
         (`(:options ,options)
-         (relint--check-list options name file pos (cons index path) nil)))
+         (relint--check-list options name pos (cons index path) nil)))
       (setq index (+ index 2))
       (setq args (cddr args)))))
 
@@ -1681,7 +1671,7 @@ than just to a surrounding or producing expression."
     (`(,(or 'choice 'radio) . ,rest)
      (cl-some #'relint--defcustom-type-regexp-p rest))))
 
-(defun relint--check-and-eval-let-binding (binding mutables file pos path)
+(defun relint--check-and-eval-let-binding (binding mutables pos path)
   "Check the let-binding BINDING, which is probably (NAME EXPR) or NAME,
 and evaluate EXPR. On success return (NAME VALUE); if evaluation failed,
 return (NAME); on syntax error, return nil."
@@ -1691,40 +1681,40 @@ return (NAME); on syntax error, return nil."
               (symbolp (car binding))
               (consp (cdr binding)))
          (relint--check-form-recursively-2
-          (cadr binding) mutables file pos (cons 1 path))
+          (cadr binding) mutables pos (cons 1 path))
          (let ((val (catch 'relint-eval
                       (list (relint--eval (cadr binding))))))
            (when (and (consp val)
                       (stringp (car val))
                       (memq (car binding) relint--known-regexp-variables))
              ;; Setting a special buffer-local regexp.
-             (relint--check-re (car val) (car binding) file pos (cons 1 path)))
+             (relint--check-re (car val) (car binding) pos (cons 1 path)))
            (cons (car binding)
                  (if (eq val 'no-value)
                      nil
                    val))))))
 
-(defun relint--check-let* (bindings body mutables file pos path index)
+(defun relint--check-let* (bindings body mutables pos path index)
   "Check the BINDINGS and BODY of a `let*' form."
   (if bindings
       (let ((b (relint--check-and-eval-let-binding
-                (car bindings) mutables file pos (cons index (cons 1 path)))))
+                (car bindings) mutables pos (cons index (cons 1 path)))))
         (if b
             (let ((relint--locals (cons b relint--locals)))
               (relint--check-let* (cdr bindings) body (cons (car b) mutables)
-                                  file pos path (1+ index)))
+                                  pos path (1+ index)))
           (relint--check-let* (cdr bindings) body mutables
-                              file pos path (1+ index))))
+                              pos path (1+ index))))
     (let ((index 2))
       (while (consp body)
         (when (consp (car body))
           (relint--check-form-recursively-2
-           (car body) mutables file pos (cons index path)))
+           (car body) mutables pos (cons index path)))
         (setq body (cdr body))
         (setq index (1+ index))))))
 
-(defun relint--check-form-recursively-2 (form mutables file pos path)
-"Check FORM (at FILE, POS, PATH) recursively.
+(defun relint--check-form-recursively-2 (form mutables pos path)
+"Check FORM (at POS, PATH) recursively.
 MUTABLES is a list of lexical variables in a scope which FORM may mutate
 directly."
   (pcase form
@@ -1735,7 +1725,7 @@ directly."
             (body-mutables mutables))
        (while (consp bindings)
          (let ((b (relint--check-and-eval-let-binding
-                   (car bindings) mutables file pos (cons i bindings-path))))
+                   (car bindings) mutables pos (cons i bindings-path))))
            (when b
              (push b new-bindings)
              (push (car b) body-mutables))
@@ -1747,11 +1737,11 @@ directly."
          (while (consp body)
            (when (consp (car body))
              (relint--check-form-recursively-2
-              (car body) body-mutables file pos (cons index path)))
+              (car body) body-mutables pos (cons index path)))
            (setq body (cdr body))
            (setq index (1+ index))))))
     (`(let* ,(and (pred listp) bindings) . ,body)
-     (relint--check-let* bindings body mutables file pos path 0))
+     (relint--check-let* bindings body mutables pos path 0))
     (`(,(or 'setq 'setq-local) . ,args)
      ;; Only mutate lexical variables in the mutation list, which means
      ;; that this form will be executed exactly once during their remaining
@@ -1762,24 +1752,23 @@ directly."
          (let ((name (car args))
                (expr (cadr args)))
            (relint--check-form-recursively-2
-            expr mutables file pos (cons i path))
+            expr mutables pos (cons i path))
            (cond
             ((memq name relint--known-regexp-variables)
-             (relint--check-re expr name file pos (cons i path)))
+             (relint--check-re expr name pos (cons i path)))
             ((memq name '(font-lock-defaults font-lock-keywords))
-             (relint--check-font-lock-keywords expr name
-                                               file pos (cons i path)))
+             (relint--check-font-lock-keywords expr name pos (cons i path)))
             ((eq name 'imenu-generic-expression)
              (relint--check-imenu-generic-expression
-              expr name file pos (cons i path)))
+              expr name pos (cons i path)))
             ((eq name 'auto-mode-alist)
              (pcase expr
                (`(cons ,item auto-mode-alist)
                 (relint--check-auto-mode-alist-expr
-                 item name file pos (cons 1 (cons i path))))
+                 item name pos (cons 1 (cons i path))))
                (`(append ,items auto-mode-alist)
                 (relint--check-auto-mode-alist
-                 items name file pos (cons 1 (cons i path))))))
+                 items name pos (cons 1 (cons i path))))))
             (t
              ;; Invalidate the variable if it was local; otherwise, ignore.
              (let ((local (assq name relint--locals)))
@@ -1794,9 +1783,9 @@ directly."
          (setq i (+ i 2)))))
     (`(push ,expr ,(and (pred symbolp) name))
      ;; Treat (push EXPR NAME) as (setq NAME (cons EXPR NAME)).
-     (relint--check-form-recursively-2 expr mutables file pos (cons 1 path))
+     (relint--check-form-recursively-2 expr mutables pos (cons 1 path))
      (when (eq name 'auto-mode-alist)
-       (relint--check-auto-mode-alist-expr expr name file pos (cons 1 path)))
+       (relint--check-auto-mode-alist-expr expr name pos (cons 1 path)))
      (let ((local (assq name relint--locals)))
        (when local
          (setcdr local
@@ -1819,12 +1808,12 @@ directly."
      ;; Only first arg is executed unconditionally.
      ;; FIXME: A conditional in the tail position of its environment binding
      ;; has the exactly-once property wrt its body; use it!
-     (relint--check-form-recursively-2 arg1 mutables file pos (cons 1 path))
+     (relint--check-form-recursively-2 arg1 mutables pos (cons 1 path))
      (let ((i 2))
        (while (consp rest)
          (when (consp (car rest))
            (relint--check-form-recursively-2
-            (car rest) nil file pos (cons i path)))
+            (car rest) nil pos (cons i path)))
          (setq rest (cdr rest))
          (setq i (1+ i)))))
     (`(,(or 'defun 'defsubst 'defmacro) ,_ ,(and (pred listp) arglist) . ,body)
@@ -1839,7 +1828,7 @@ directly."
          (while (consp body)
            (when (consp (car body))
              (relint--check-form-recursively-2
-              (car body) argnames file pos (cons i path)))
+              (car body) argnames pos (cons i path)))
            (setq body (cdr body))
            (setq i (1+ i))))))
     (`(lambda ,(and (pred listp) arglist) . ,body)
@@ -1854,7 +1843,7 @@ directly."
          (while (consp body)
            (when (consp (car body))
              (relint--check-form-recursively-2
-              (car body) argnames file pos (cons i path)))
+              (car body) argnames pos (cons i path)))
            (setq body (cdr body))
            (setq i (1+ i))))))
     (_ 
@@ -1872,20 +1861,20 @@ directly."
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
           (relint--check-re re-arg (format "call to %s" (car form))
-                            file pos (cons 1 path))))
+                            pos (cons 1 path))))
        (`(load-history-filename-element ,re-arg)
         (relint--check-file-name-re re-arg (format "call to %s" (car form))
-                                    file pos (cons 1 path)))
+                                    pos (cons 1 path)))
        (`(directory-files-recursively ,_ ,re-arg . ,_)
         (relint--check-file-name-re re-arg (format "call to %s" (car form))
-                                    file pos (cons 2 path)))
+                                    pos (cons 2 path)))
        (`(,(or 'split-string 'split-string-and-unquote
                'string-trim-left 'string-trim-right 'string-trim)
           ,_ ,re-arg . ,rest)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
           (relint--check-re re-arg (format "call to %s" (car form))
-                            file pos (cons 2 path)))
+                            pos (cons 2 path)))
         ;; string-trim has another regexp argument (trim-right, arg 3)
         (when (and (eq (car form) 'string-trim)
                    (car rest))
@@ -1893,7 +1882,7 @@ directly."
             (unless (and (symbolp right)
                          (memq right relint--checked-variables))
               (relint--check-re right (format "call to %s" (car form))
-                                file pos (cons 3 path)))))
+                                pos (cons 3 path)))))
         ;; split-string has another regexp argument (trim, arg 4)
         (when (and (eq (car form) 'split-string)
                    (cadr rest))
@@ -1901,34 +1890,33 @@ directly."
             (unless (and (symbolp trim)
                          (memq trim relint--checked-variables))
               (relint--check-re trim (format "call to %s" (car form))
-                                file pos (cons 4 path))))))
+                                pos (cons 4 path))))))
        (`(,(or 'directory-files 'directory-files-and-attributes)
           ,_ ,_ ,re-arg . ,_)
         (relint--check-file-name-re re-arg (format "call to %s" (car form))
-                                    file pos (cons 3 path)))
+                                    pos (cons 3 path)))
        (`(,(or 'skip-chars-forward 'skip-chars-backward)
           ,skip-arg . ,_)
         (let ((str (relint--get-string skip-arg)))
           (when str
             (relint--check-skip-set str (format "call to %s" (car form))
-                                    file pos (cons 1 path))))
+                                    pos (cons 1 path))))
         (relint--check-non-regexp-provenance
-         (car form) skip-arg file pos (cons 1 path))
+         (car form) skip-arg pos (cons 1 path))
         )
        (`(,(or 'skip-syntax-forward 'skip-syntax-backward) ,arg . ,_)
         (let ((str (relint--get-string arg)))
           (when str
             (relint--check-syntax-string str (format "call to %s" (car form))
-                                         file pos (cons 1 path))))
-        (relint--check-non-regexp-provenance
-         (car form) arg file pos (cons 1 path))
+                                         pos (cons 1 path))))
+        (relint--check-non-regexp-provenance (car form) arg pos (cons 1 path))
         )
        (`(concat . ,args)
-        (relint--check-concat-mixup args file pos path))
+        (relint--check-concat-mixup args pos path))
        (`(format ,template-arg . ,args)
         (let ((template (relint--get-string template-arg)))
           (when template
-            (relint--check-format-mixup template args file pos path))))
+            (relint--check-format-mixup template args pos path))))
        (`(,(or 'defvar 'defconst 'defcustom)
           ,name ,re-arg . ,rest)
         (let ((type (and (eq (car form) 'defcustom)
@@ -1939,21 +1927,21 @@ directly."
                   (string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                       eos)
                                   (symbol-name name)))
-              (relint--check-re re-arg name file pos (cons 2 path))
+              (relint--check-re re-arg name pos (cons 2 path))
               (when (eq (car form) 'defcustom)
-                (relint--check-defcustom-re form name file pos path))
+                (relint--check-defcustom-re form name pos path))
               (push name relint--checked-variables))
              ((and (consp type)
                    (eq (car type) 'alist)
                    (relint--defcustom-type-regexp-p
                     (plist-get (cdr type) :key-type)))
-              (relint--check-list-any re-arg name file pos (cons 2 path))
+              (relint--check-list-any re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((and (consp type)
                    (eq (car type) 'alist)
                    (relint--defcustom-type-regexp-p
                     (plist-get (cdr type) :value-type)))
-              (relint--check-alist-cdr re-arg name file pos (cons 2 path))
+              (relint--check-alist-cdr re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((or (and (consp type)
                        (eq (car type) 'repeat)
@@ -1963,32 +1951,30 @@ directly."
                                                "-list"))
                                       eos)
                                   (symbol-name name)))
-              (relint--check-list re-arg name file pos (cons 2 path) nil)
+              (relint--check-list re-arg name pos (cons 2 path) nil)
               (push name relint--checked-variables))
              ((string-match-p (rx "font-lock-keywords")
                               (symbol-name name))
-              (relint--check-font-lock-keywords re-arg name file pos
-                                                (cons 2 path))
+              (relint--check-font-lock-keywords re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((eq name 'compilation-error-regexp-alist-alist)
               (relint--check-compilation-error-regexp-alist-alist
-               re-arg name file pos (cons 2 path))
+               re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((eq name 'auto-mode-alist)
-              (relint--check-auto-mode-alist
-               re-arg name file pos (cons 2 path)))
+              (relint--check-auto-mode-alist re-arg name pos (cons 2 path)))
              ((string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
                                   "-alist" eos)
                               (symbol-name name))
-              (relint--check-alist-any re-arg name file pos (cons 2 path))
+              (relint--check-alist-any re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((string-match-p (rx "-mode-alist" eos)
                               (symbol-name name))
-              (relint--check-list-any re-arg name file pos (cons 2 path))
+              (relint--check-list-any re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((string-match-p (rx "-rules-list" eos)
                               (symbol-name name))
-              (relint--check-rules-list re-arg name file pos (cons 2 path))
+              (relint--check-rules-list re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ;; Doc string starting with "regexp" etc.
              ((and (stringp (car rest))
@@ -2006,9 +1992,9 @@ directly."
                           (opt (or "a" "the" "this") " ")
                           (or "regex" "regular expression"))
                       (car rest))))
-              (relint--check-re re-arg name file pos (cons 2 path))
+              (relint--check-re re-arg name pos (cons 2 path))
               (when (eq (car form) 'defcustom)
-                (relint--check-defcustom-re form name file pos path))
+                (relint--check-defcustom-re form name pos path))
               (push name relint--checked-variables))
              )
 
@@ -2027,28 +2013,27 @@ directly."
        (`(rx . ,items)
         (let ((i 1))
           (while (consp items)
-            (relint--check-rx (car items) file pos (cons i path) t)
+            (relint--check-rx (car items) pos (cons i path) t)
             (setq items (cdr items))
             (setq i (1+ i)))))
        (`(rx-to-string (,(or 'quote '\`) ,arg) . ,_)
-        (relint--check-rx arg file pos (cons 1 (cons 1 path)) t))
+        (relint--check-rx arg pos (cons 1 (cons 1 path)) t))
        (`(font-lock-add-keywords ,_ ,keywords . ,_)
         (relint--check-font-lock-keywords
-         keywords (car form) file pos (cons 2 path)))
+         keywords (car form) pos (cons 2 path)))
        (`(set (make-local-variable ',name) ,expr)
         (cond ((memq name relint--known-regexp-variables)
-               (relint--check-re expr name file pos (cons 2 path)))
+               (relint--check-re expr name pos (cons 2 path)))
               ((memq name '(font-lock-defaults font-lock-keywords))
-               (relint--check-font-lock-keywords expr name
-                                                 file pos (cons 2 path)))
+               (relint--check-font-lock-keywords expr name pos (cons 2 path)))
               ((eq name 'imenu-generic-expression)
                (relint--check-imenu-generic-expression
-                expr name file pos (cons 2 path)))))
+                expr name pos (cons 2 path)))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
         (let ((origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin
-                                            file pos (cons 4 path))
-          (relint--check-list auto-mode-list origin file pos (cons 5 path) t)))
+                                            pos (cons 4 path))
+          (relint--check-list auto-mode-list origin pos (cons 5 path) t)))
        (`(,(or 'syntax-propertize-rules 'syntax-propertize-precompile-rules)
           . ,rules)
         (let ((index 1))
@@ -2056,22 +2041,22 @@ directly."
             (when (consp item)
               (relint--check-re (car item)
                                 (format "call to %s" (car form))
-                                file pos (cons 0 (cons index path))))
+                                pos (cons 0 (cons index path))))
             (setq index (1+ index)))))
        (`(add-to-list 'auto-mode-alist ,elem . ,_)
         (relint--check-auto-mode-alist-expr
-         elem (car form) file pos (cons 2 path)))
+         elem (car form) pos (cons 2 path)))
        (`(modify-coding-system-alist ,type ,re-arg ,_)
         (funcall
          (if (eq (relint--eval-or-nil type) 'file)
              #'relint--check-file-name-re
            #'relint--check-re)
-         re-arg (format "call to %s" (car form)) file pos (cons 2 path)))
+         re-arg (format "call to %s" (car form)) pos (cons 2 path)))
        (`(,name . ,args)
         (let ((alias (assq name relint--alias-defs)))
           (when alias
             (relint--check-form-recursively-2
-             (cons (cdr alias) args) mutables file pos path))))
+             (cons (cdr alias) args) mutables pos path))))
        )
 
      ;; Check calls to remembered functions with regexp arguments.
@@ -2086,7 +2071,7 @@ directly."
                               (memq (car args) relint--checked-variables))
                    (relint--check-re (car args)
                                      (format "call to %s" (car form))
-                                     file pos (cons (1+ index) path)))
+                                     pos (cons (1+ index) path)))
                  (setq indices (cdr indices)))
                (setq args (cdr args))
                (setq index (1+ index)))))))
@@ -2101,22 +2086,22 @@ directly."
            ;; Check subforms with the assumption that nothing can be mutated,
            ;; since we don't really know what is evaluated when.
            (relint--check-form-recursively-2
-            (car form) nil file pos (cons index path)))
+            (car form) nil pos (cons index path)))
           ((and (memq (car form) '(:regexp :regex))
                 (consp (cdr form)))
            (relint--check-re (cadr form)
                              (format "%s parameter" (car form))
-                             file pos (cons (1+ index) path))))
+                             pos (cons (1+ index) path))))
          (setq form (cdr form))
          (setq index (1+ index)))))))
 
-(defun relint--show-errors ()
-  (unless (or noninteractive relint--quiet (not relint--error-buffer))
+(defun relint--show-errors (error-buffer quiet)
+  (unless (or noninteractive quiet (not error-buffer))
     (let ((pop-up-windows t))
-      (display-buffer relint--error-buffer)
+      (display-buffer error-buffer)
       (sit-for 0))))
 
-(defun relint--read-buffer (file)
+(defun relint--read-buffer ()
   "Read top-level forms from the current buffer.
 Return a list of (FORM . STARTING-POSITION)."
   (goto-char (point-min))
@@ -2137,72 +2122,58 @@ Return a list of (FORM . STARTING-POSITION)."
              (goto-char pos)
              (forward-sexp 1))
             (t
-             (relint--err file (point) nil (prin1-to-string err))
+             (relint--err (point) nil (prin1-to-string err))
              (setq keep-going nil))))
           (error
-           (relint--err file (point) nil (prin1-to-string err))
+           (relint--err (point) nil (prin1-to-string err))
            (setq keep-going nil)))
         (when (consp form)
           (push (cons form pos) forms))))
     (nreverse forms)))
 
-(defun relint--scan-current-buffer (file)
-  (let ((errors-before relint--error-count))
-    (let ((forms (relint--read-buffer file))
-          (relint--variables nil)
-          (relint--checked-variables nil)
-          (relint--regexp-functions nil)
-          (relint--regexp-returning-functions
-           relint--known-regexp-returning-functions)
-          (relint--function-defs nil)
-          (relint--macro-defs nil)
-          (relint--alias-defs nil)
-          (relint--locals nil)
-          (case-fold-search nil))
-      (dolist (form forms)
-        (relint--check-form-recursively-1 (car form) file (cdr form) nil))
-      (dolist (form forms)
-        (relint--check-form-recursively-2 (car form) nil file (cdr form) nil)))
-    (when (> relint--error-count errors-before)
-      (relint--show-errors))))
-
-(defun relint--scan-file (file base-dir)
-  (with-temp-buffer
-    (emacs-lisp-mode)
-    (insert-file-contents file)
-    ;; Call file-relative-name lazily -- it is surprisingly expensive
-    ;; on macOS, and the result only used for diagnostics output.
-    (relint--scan-current-buffer
-     (thunk-delay (file-relative-name file base-dir)))))
+(defun relint--scan-current-buffer ()
+  (let* ((relint--suppression-count 0)
+         (relint--complaints nil)
+         (forms (relint--read-buffer))
+         (relint--variables nil)
+         (relint--checked-variables nil)
+         (relint--regexp-functions nil)
+         (relint--regexp-returning-functions
+          relint--known-regexp-returning-functions)
+         (relint--function-defs nil)
+         (relint--macro-defs nil)
+         (relint--alias-defs nil)
+         (relint--locals nil)
+         (case-fold-search nil))
+    (dolist (form forms)
+      (relint--check-form-recursively-1 (car form) (cdr form) nil))
+    (dolist (form forms)
+      (relint--check-form-recursively-2 (car form) nil (cdr form) nil))
+    (cons (nreverse relint--complaints) relint--suppression-count)))
 
 (defvar relint-last-target nil
   "The last file, directory or buffer on which relint was run.")
 
-(defun relint--init (target base-dir error-buffer quiet)
-  (setq relint--quiet quiet)
-  (setq relint--error-count 0)
-  (setq relint--suppression-count 0)
-  (setq relint--error-buffer error-buffer)
+(defun relint--prepare-error-buffer (target base-dir error-buffer quiet)
   (when error-buffer
     (with-current-buffer error-buffer
       (unless quiet
         (let ((inhibit-read-only t))
-          (insert (format "Relint results for %s\n" target))
-          (relint--show-errors)))
+          (insert (format "Relint results for %s\n" target)))
+        (relint--show-errors error-buffer quiet))
       (setq relint-last-target target)
       (setq default-directory base-dir))))
 
-(defun relint--finish ()
-  (let* ((supp relint--suppression-count)
-         (errors (- relint--error-count supp))
-         (msg (format "%d error%s%s"
+(defun relint--finish (errors suppressed error-buffer quiet)
+  (let* ((msg (format "%d error%s%s"
                       errors (if (= errors 1) "" "s")
-                      (if (zerop supp)
+                      (if (zerop suppressed)
                           ""
-                        (format " (%s suppressed)" supp)))))
-    (unless (or relint--quiet (and noninteractive (zerop errors)))
+                        (format " (%s suppressed)" suppressed)))))
+    (unless (or quiet (and noninteractive (zerop errors)))
       (unless noninteractive
-        (relint--add-to-error-buffer (format "\nFinished -- %s.\n" msg)))
+        (relint--add-to-error-buffer error-buffer
+                                     (format "\nFinished -- %s.\n" msg)))
       (message "relint: %s." msg))))
 
 (defun relint-again ()
@@ -2231,26 +2202,57 @@ Return a list of (FORM . STARTING-POSITION)."
   (setq-local relint-last-target nil))
 
 (defun relint--scan-files (files target base-dir error-buffer)
-  (relint--init target base-dir error-buffer nil)
-  (dolist (file files)
-    ;;(relint--output-message (format "Scanning %s" file))
-    (relint--scan-file file base-dir))
-  (relint--finish))
+  "Scan FILES in BASE-DIR; return (ERRORS . SUPPRESSED).
+TARGET is the file or directory to use for a repeated run."
+  (relint--prepare-error-buffer target base-dir error-buffer nil)
+  (let ((total-errors 0)
+        (total-suppressed 0))
+    (dolist (file files)
+      (with-temp-buffer
+        (emacs-lisp-mode)
+        (insert-file-contents file)
+        ;; Call file-relative-name lazily -- it is surprisingly expensive
+        ;; on macOS, and the result only used for diagnostics output.
+        (let* ((results (relint--scan-current-buffer))
+               (complaints (car results))
+               (suppressed (cdr results)))
+          (when complaints
+            (relint--output-complaints (current-buffer)
+                                       (file-relative-name file base-dir)
+                                       complaints error-buffer))
+          (setq total-errors (+ total-errors (length complaints) suppressed))
+          (setq total-suppressed (+ total-suppressed suppressed))
+          (when complaints
+            (relint--show-errors error-buffer nil)))))
+    (relint--finish total-errors total-suppressed error-buffer nil)
+    (cons total-errors total-suppressed)))
 
 (defun relint--tree-files (dir)
   (directory-files-recursively
    dir (rx bos (not (any ".")) (* anything) ".el" eos)))
 
-(defun relint--scan-buffer (buffer error-buffer quiet)
-  "Scan BUFFER for regexp errors.
-Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
+(defun relint--scan-buffer (buffer)
+  "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
+COMPLAINTS is a list of (unsuppressed) diagnostics each on the form
+   (MESSAGE EXPR-POS ERROR-POS STRING STRING-IDX SEVERITY)
+and SUPPRESSED is the number of suppressed diagnostics."
   (with-current-buffer buffer
     (unless (derived-mode-p 'emacs-lisp-mode)
       (error "Relint: can only scan elisp code (use emacs-lisp-mode)"))
-    (relint--init buffer default-directory error-buffer quiet)
     (save-excursion
-      (relint--scan-current-buffer (thunk-delay (buffer-name)))))
-  (relint--finish))
+      (relint--scan-current-buffer))))
+
+(defun relint--buffer (buffer error-buffer quiet)
+  ;; FIXME: With 0 errors, maybe don't pop up the error buffer at all?
+  (let* ((results (relint--scan-buffer buffer))
+         (complaints (car results))
+         (suppressed (cdr results))
+         (errors (+ (length complaints) suppressed)))
+    (relint--prepare-error-buffer buffer default-directory error-buffer quiet)
+    (when complaints
+      (relint--output-complaints buffer (buffer-name buffer)
+                                 complaints error-buffer))
+    (relint--finish errors suppressed error-buffer quiet)))
 
 
 ;;;###autoload
@@ -2277,7 +2279,7 @@ Diagnostics to ERROR-BUFFER. If QUIET, don't emit messages."
   "Scan the current buffer for regexp errors.
 The buffer must be in emacs-lisp-mode."
   (interactive)
-  (relint--scan-buffer (current-buffer) (relint--get-error-buffer) nil))
+  (relint--buffer (current-buffer) (relint--get-error-buffer) nil))
 
 ;;;###autoload
 (defun relint-buffer (buffer)
@@ -2294,13 +2296,7 @@ and SEVERITY is `error' or `warning'.
 The intent is that ERROR-POS is the position in the buffer that
 corresponds to STRING at STRING-IDX, if such a location can be
 determined."
-  (let* ((complaints nil)
-         (relint--report-function
-          (lambda (_file expr-pos error-pos message str str-idx severity)
-            (push (list message expr-pos error-pos str str-idx severity)
-                  complaints))))
-    (relint--scan-buffer buffer nil t)
-    (nreverse complaints)))
+  (car (relint--scan-buffer buffer)))
 
 (defun relint-batch ()
   "Scan elisp source files for regexp-related errors.
@@ -2311,14 +2307,17 @@ When done, Emacs terminates with a nonzero status if anything worth
 complaining about was found, zero otherwise."
   (unless noninteractive
     (error "`relint-batch' is only for use with -batch"))
-  (relint--scan-files (mapcan (lambda (arg)
-                                (if (file-directory-p arg)
-                                    (relint--tree-files arg)
-                                  (list arg)))
-                              command-line-args-left)
-                      nil default-directory nil)
-  (setq command-line-args-left nil)
-  (kill-emacs (if (> relint--error-count relint--suppression-count) 1 0)))
+  (let* ((err-supp
+          (relint--scan-files (mapcan (lambda (arg)
+                                        (if (file-directory-p arg)
+                                            (relint--tree-files arg)
+                                          (list arg)))
+                                      command-line-args-left)
+                              nil default-directory nil))
+         (errors (car err-supp))
+         (suppressed (cdr err-supp)))
+    (setq command-line-args-left nil)
+    (kill-emacs (if (> errors suppressed) 1 0))))
 
 (provide 'relint)
 

@@ -99,7 +99,7 @@ and a path."
     ;; The reference files (*.expected) are kept in the `grave' style,
     ;; to make the test independent of `text-quoting-style'.
     (let ((text-quoting-style 'grave))
-      (relint--scan-buffer (find-file-noselect file t) (current-buffer) t))
+      (relint--buffer (find-file-noselect file t) (current-buffer) t))
     (buffer-string)))
 
 (defun relint-test--read-file (file)
