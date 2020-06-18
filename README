@@ -214,6 +214,23 @@ skip-syntax-backward.
     In general, A?, where A matches the empty string, can be
     simplified to just A.
 
+  - Ineffective string escape '\X'
+
+    A backslash precedes a character that does not need escaping in a
+    string literal (any string, not just regexps), like in "hot\-dog".
+
+    If the backslash should be part of the string then it probably
+    needs to be doubled; otherwise, it is pointless and should be
+    removed to avoid confusion.
+
+    In Emacs versions older than 27.1, a left round or square bracket,
+    '(' or '[', at the very start of a line in a multi-line string
+    could sometimes fool the Emacs-Lisp mode into believing it to be
+    the start of a function, thus people sometimes precede such
+    brackets with an otherwise unnecessary backslash. However, there
+    is usually no reason to put backslashes before brackets in strings
+    in general.
+
   - Suspect range '+-X' or 'X-+'
 
     A character range with '+' as one of its endpoints is more often an
