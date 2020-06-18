@@ -1,0 +1,17 @@
+13.elisp:9:5: Ineffective string escape `\m'
+13.elisp:9:11: Ineffective string escape `\('
+13.elisp:9:23: Ineffective string escape `\)'
+13.elisp:10:10: Ineffective string escape `\<'
+13.elisp:10:18: Ineffective string escape `\>'
+13.elisp:11:16: Ineffective string escape `\)'
+13.elisp:12:12: Ineffective string escape `\}'
+13.elisp:17:23: In call to re-search-forward: Unescaped literal `$' (pos 0)
+  "$.x++"
+   ^
+13.elisp:17:23: Ineffective string escape `\$'
+13.elisp:17:25: Ineffective string escape `\.'
+13.elisp:17:28: Ineffective string escape `\+'
+13.elisp:17:30: In call to re-search-forward: Repetition of repetition (pos 4)
+  "$.x++"
+   ....^
+13.elisp:17:30: Ineffective string escape `\+'
