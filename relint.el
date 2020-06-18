@@ -2131,6 +2131,89 @@ Return a list of (FORM . STARTING-POSITION)."
           (push (cons form pos) forms))))
     (nreverse forms)))
 
+(defun relint--miscape-in-doc-string-p (pos)
+  "Whether the string literal starting at POS is a doc string."
+  (save-excursion
+    (goto-char pos)
+    ;; Go back to start of containing sexp, counting the steps.
+    (let ((steps 0))
+      (while (and (not (bobp))
+                  (ignore-errors
+                    (forward-sexp -1)
+                    t)
+                  (not (and (= steps 0)
+                            (looking-at (rx ":documentation" symbol-end)))))
+        (setq steps (1+ steps)))
+      (or
+       (= steps 0)           ; `:documentation' parameter
+       (and (= steps 3)
+            (looking-at (rx (or "defun" "defmacro" "defsubst" "defalias"
+                                "defconst" "defvar" "defcustom"
+                                "autoload"
+                                "cl-defun" "cl-defmacro" "cl-defmethod"
+                                "ert-deftest"
+                                ;; Specific to cc-mode
+                                "c-lang-defvar"
+                                ;; Specific to gnus
+                                "defvoo"))))
+       (and (= steps 2)
+            (looking-at (rx (or "define-major-mode" "define-minor-mode"
+                                ;; Specific to cc-mode
+                                "c-lang-defconst"))))
+       (and (= steps 4)
+            (looking-at (rx (or "define-derived-mode"))))))))
+
+(defconst relint--miscape-ignore-left-round-bracket nil
+  "Whether to ignore specifically `\\(' in doc strings.")
+
+(defconst relint--miscape-ignore-all-doc-strings t
+  "Whether to ignore all stray backslashes in doc strings.")
+
+(defun relint--miscape-suspicious-backslash (string-start)
+  "With point at an ineffective backslash, emit an warning unless filtered out.
+STRING-START is the start of the string literal (first double quote)."
+  (let ((c (char-after (1+ (point)))))
+    (unless (or (bolp)
+                (and (or (and relint--miscape-ignore-left-round-bracket
+                              (eq c ?\())
+                         relint--miscape-ignore-all-doc-strings)
+                     (relint--miscape-in-doc-string-p string-start)))
+      (relint--warn (point) nil
+                    (format-message
+                     "Ineffective string escape `\\%s'"
+                     (relint--escape-string (char-to-string c) nil))))))
+
+(defun relint--miscape-current-buffer ()
+  "Check for misplaced backslashes in the current buffer."
+  (goto-char (point-min))
+  (while (not (eobp))
+    (when (looking-at (rx (1+ (or (seq "?" (or (seq ?\\ anything)
+                                               (not (any ?\\))))
+                                  (seq "\\" anything)
+                                  (seq ";" (0+ nonl))
+                                  (not (any ?\" ?\; ?? ?\\))))))
+      (goto-char (match-end 0)))
+    (when (looking-at (rx ?\"))
+      (let ((string-start (point)))
+        (goto-char (match-end 0))
+        (while (not (looking-at (rx (or ?\" eot))))
+          (when (looking-at
+                 (rx (1+ (or (seq
+                              ?\\ (any "0-9" "xuUN" "abfnrtv"
+                                       "des" "^" " "
+                                       ?\\ ?\n ?\"))
+                             (seq
+                              (1+ ?\\ (any "CM") "-")
+                              (or (not (any ?\\))
+                                  (seq ?\\ anything)))
+                             (not (any ?\\ ?\"))))))
+            (goto-char (match-end 0)))
+          (when (eq (following-char) ?\\)
+            (relint--miscape-suspicious-backslash string-start)
+            (forward-char 2)))
+        (unless (eobp)
+          (forward-char 1))))))
+
 (defun relint--scan-current-buffer ()
   (let* ((relint--suppression-count 0)
          (relint--complaints nil)
@@ -2149,6 +2232,7 @@ Return a list of (FORM . STARTING-POSITION)."
       (relint--check-form-recursively-1 (car form) (cdr form) nil))
     (dolist (form forms)
       (relint--check-form-recursively-2 (car form) nil (cdr form) nil))
+    (relint--miscape-current-buffer)
     (cons (nreverse relint--complaints) relint--suppression-count)))
 
 (defvar relint-last-target nil
