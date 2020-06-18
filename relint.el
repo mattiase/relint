@@ -2233,7 +2233,19 @@ STRING-START is the start of the string literal (first double quote)."
     (dolist (form forms)
       (relint--check-form-recursively-2 (car form) nil (cdr form) nil))
     (relint--miscape-current-buffer)
-    (cons (nreverse relint--complaints) relint--suppression-count)))
+    (let ((complaints (nreverse relint--complaints)))
+      (cons
+       (sort complaints
+             ;; Sort by error position if available, expression position
+             ;; otherwise.
+             (lambda (a b)
+               (let ((expr-pos-a (nth 1 a))
+                     (expr-pos-b (nth 1 b))
+                     (error-pos-a (nth 2 a))
+                     (error-pos-b (nth 2 b)))
+                 (< (or error-pos-a expr-pos-a)
+                    (or error-pos-b expr-pos-b)))))
+       relint--suppression-count))))
 
 (defvar relint-last-target nil
   "The last file, directory or buffer on which relint was run.")
