@@ -2164,20 +2164,15 @@ Return a list of (FORM . STARTING-POSITION)."
        (and (= steps 4)
             (looking-at (rx (or "define-derived-mode"))))))))
 
-(defconst relint--miscape-ignore-left-round-bracket nil
-  "Whether to ignore specifically `\\(' in doc strings.")
-
-(defconst relint--miscape-ignore-all-doc-strings t
-  "Whether to ignore all stray backslashes in doc strings.")
-
 (defun relint--suspicious-backslash (string-start)
   "With point at an ineffective backslash, emit an warning unless filtered out.
 STRING-START is the start of the string literal (first double quote)."
   (let ((c (char-after (1+ (point)))))
+    ;; Filter out escaped round and square brackets and apostrophes
+    ;; inside doc strings, as well as anything in the leftmost column:
+    ;; common for historical reasons and less likely to be mistakes.
     (unless (or (bolp)
-                (and (or (and relint--miscape-ignore-left-round-bracket
-                              (eq c ?\())
-                         relint--miscape-ignore-all-doc-strings)
+                (and (memq c '(?\( ?\) ?\[ ?\] ?\'))
                      (relint--in-doc-string-p string-start)))
       (relint--warn (point) nil
                     (format-message
