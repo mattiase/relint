@@ -15,3 +15,4 @@
   "$.x++"
    ....^
 13.elisp:17:30: Ineffective string escape `\+'
+13.elisp:18:16: Ineffective string escape `\q'

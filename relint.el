@@ -2145,7 +2145,8 @@ Return a list of (FORM . STARTING-POSITION)."
                             (looking-at (rx ":documentation" symbol-end)))))
         (setq steps (1+ steps)))
       (or
-       (= steps 0)           ; `:documentation' parameter
+       (and (= steps 0)
+            (looking-at (rx ":documentation")))
        (and (= steps 3)
             (looking-at (rx (or "defun" "defmacro" "defsubst" "defalias"
                                 "defconst" "defvar" "defcustom"

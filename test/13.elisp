@@ -14,4 +14,5 @@
 and \a \b \f \n \r \t \v \d \e \s \^P"))
 
 (defun f2 ()
-  (re-search-forward "\$\.x\+\+"))
+  (re-search-forward "\$\.x\+\+")
+  '("bracketed \q string"))
