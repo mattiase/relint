@@ -2198,14 +2198,10 @@ STRING-START is the start of the string literal (first double quote)."
         (goto-char (match-end 0))
         (while (not (looking-at (rx (or ?\" eot))))
           (when (looking-at
-                 (rx (1+ (or (seq
-                              ?\\ (any "0-9" "xuUN" "abfnrtv"
-                                       "des" "^" " "
-                                       ?\\ ?\n ?\"))
-                             (seq
-                              (1+ ?\\ (any "CM") "-")
-                              (or (not (any ?\\))
-                                  (seq ?\\ anything)))
+                 (rx (1+ (or (seq ?\\ (any "0-9" "xuUN" "abfnrtv"
+                                           "des" "^" " "
+                                           ?\\ ?\n ?\"
+                                           "CM"))
                              (not (any ?\\ ?\"))))))
             (goto-char (match-end 0)))
           (when (eq (following-char) ?\\)
