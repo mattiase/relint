@@ -2131,7 +2131,7 @@ Return a list of (FORM . STARTING-POSITION)."
           (push (cons form pos) forms))))
     (nreverse forms)))
 
-(defun relint--miscape-in-doc-string-p (pos)
+(defun relint--in-doc-string-p (pos)
   "Whether the string literal starting at POS is a doc string."
   (save-excursion
     (goto-char pos)
@@ -2169,7 +2169,7 @@ Return a list of (FORM . STARTING-POSITION)."
 (defconst relint--miscape-ignore-all-doc-strings t
   "Whether to ignore all stray backslashes in doc strings.")
 
-(defun relint--miscape-suspicious-backslash (string-start)
+(defun relint--suspicious-backslash (string-start)
   "With point at an ineffective backslash, emit an warning unless filtered out.
 STRING-START is the start of the string literal (first double quote)."
   (let ((c (char-after (1+ (point)))))
@@ -2177,13 +2177,13 @@ STRING-START is the start of the string literal (first double quote)."
                 (and (or (and relint--miscape-ignore-left-round-bracket
                               (eq c ?\())
                          relint--miscape-ignore-all-doc-strings)
-                     (relint--miscape-in-doc-string-p string-start)))
+                     (relint--in-doc-string-p string-start)))
       (relint--warn (point) nil
                     (format-message
                      "Ineffective string escape `\\%s'"
                      (relint--escape-string (char-to-string c) nil))))))
 
-(defun relint--miscape-current-buffer ()
+(defun relint--check-for-misplaced-backslashes ()
   "Check for misplaced backslashes in the current buffer."
   (goto-char (point-min))
   (while (not (eobp))
@@ -2209,7 +2209,7 @@ STRING-START is the start of the string literal (first double quote)."
                              (not (any ?\\ ?\"))))))
             (goto-char (match-end 0)))
           (when (eq (following-char) ?\\)
-            (relint--miscape-suspicious-backslash string-start)
+            (relint--suspicious-backslash string-start)
             (forward-char 2)))
         (unless (eobp)
           (forward-char 1))))))
@@ -2232,7 +2232,7 @@ STRING-START is the start of the string literal (first double quote)."
       (relint--check-form-recursively-1 (car form) (cdr form) nil))
     (dolist (form forms)
       (relint--check-form-recursively-2 (car form) nil (cdr form) nil))
-    (relint--miscape-current-buffer)
+    (relint--check-for-misplaced-backslashes)
     (let ((complaints (nreverse relint--complaints)))
       (cons
        (sort complaints
