@@ -1860,7 +1860,8 @@ directly."
                'posix-string-match
                'search-forward-regexp 'search-backward-regexp
                'kill-matching-buffers
-               'keep-lines 'flush-lines 'how-many)
+               'keep-lines 'flush-lines 'how-many
+               'delete-matching-lines 'delete-non-matching-lines 'count-matches)
           ,re-arg . ,_)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
@@ -1899,6 +1900,12 @@ directly."
           ,_ ,_ ,re-arg . ,_)
         (relint--check-file-name-re re-arg (format "call to %s" (car form))
                                     pos (cons 3 path)))
+       (`(sort-regexp-fields ,_ ,record-arg ,key-arg . ,_)
+        (let ((name (format "call to %s" (car form))))
+          (relint--check-re record-arg name pos (cons 2 path))
+          (let ((key-re (relint--eval-or-nil key-arg)))
+            (when (and (stringp key-re) (not (equal key-re "\\&")))
+              (relint--check-re key-re name pos (cons 3 path))))))
        (`(,(or 'skip-chars-forward 'skip-chars-backward)
           ,skip-arg . ,_)
         (let ((str (relint--get-string skip-arg)))

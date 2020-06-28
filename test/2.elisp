@@ -29,7 +29,10 @@
   (string-trim s "[yy]" "[zz]")
   (directory-files s nil "+1")
   (directory-files-and-attributes s nil "+2")
-  (directory-files-recursively s "+3"))
+  (directory-files-recursively s "+3")
+  (delete-matching-lines "+4")
+  (delete-non-matching-lines "+5")
+  (count-matches "+6"))
 
 ;; Test argument names as means of detecting regexps.
 (defun f2 (x1 my-regexp x2 my-regex x3 my-re x4 my-pattern x5 re)
@@ -57,3 +60,7 @@
 (defun f7 ()
   (alpha beta :regexp "[11]")
   (gamma :regex "[22]" delta))
+
+(defun f8 ()
+  (sort-regexp-fields nil "^.*$x" "\\&" (point-min) (point-max))
+  (sort-regexp-fields nil "^.*$" "\\%" (point-min) (point-max)))
