@@ -187,7 +187,7 @@ skip-syntax-backward.
 
   - Literal '-' not first or last
 
-    It is good style to put literal hyphens last in character
+    It is good style to put a literal hyphen last in character
     alternatives and skip sets, to clearly indicate that it was not
     intended as part of a range.
 
