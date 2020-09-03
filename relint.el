@@ -2328,7 +2328,9 @@ TARGET is the file or directory to use for a repeated run."
 
 (defun relint--tree-files (dir)
   (directory-files-recursively
-   dir (rx bos (not (any ".")) (* anything) ".el" eos)))
+   dir (rx bos (not (any ".")) (* anything) ".el" eos) nil
+   ;; Save time by not pointlessly descending into huge .git directories.
+   (lambda (s) (not (string-suffix-p "/.git" s)))))
 
 (defun relint--scan-buffer (buffer)
   "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
