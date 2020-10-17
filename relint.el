@@ -2305,8 +2305,15 @@ STRING-START is the start of the string literal (first double quote)."
 TARGET is the file or directory to use for a repeated run."
   (relint--prepare-error-buffer target base-dir error-buffer nil)
   (let ((total-errors 0)
-        (total-suppressed 0))
+        (total-suppressed 0)
+        (nfiles (length files))
+        (count 0))
     (dolist (file files)
+      (when (and (not noninteractive)
+                 (zerop (% count 50)))
+        (message "Scanned %d/%d file%s..."
+                 count nfiles (if (= nfiles 1) "" "s")))
+      (setq count (1+ count))
       (with-temp-buffer
         (emacs-lisp-mode)
         (insert-file-contents file)
@@ -2368,12 +2375,10 @@ and SUPPRESSED is the number of suppressed diagnostics."
   "Scan all *.el files in DIR for regexp-related errors."
   (interactive "DRelint directory: ")
   (message "Finding .el files in %s..." dir)
-  (let* ((files (relint--tree-files dir))
-         (n (length files)))
-    (if (not files)
-        (message "No .el files found.")
-      (message "Scanning %d file%s..." n (if (= n 1) "" "s"))
-      (relint--scan-files files dir dir (relint--get-error-buffer)))))
+  (let ((files (relint--tree-files dir)))
+    (if files
+        (relint--scan-files files dir dir (relint--get-error-buffer))
+      (message "No .el files found."))))
 
 ;;;###autoload
 (defun relint-current-buffer ()
