@@ -444,6 +444,7 @@ or (NAME val VAL), for values.")
     string-join string-trim-left string-trim-right string-trim
     string-prefix-p string-suffix-p
     string-blank-p string-remove-prefix string-remove-suffix
+    string-search string-replace
     vector aref elt vconcat
     char-to-string string-to-char
     number-to-string string-to-number int-to-string
