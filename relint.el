@@ -1862,7 +1862,11 @@ directly."
                'search-forward-regexp 'search-backward-regexp
                'kill-matching-buffers
                'keep-lines 'flush-lines 'how-many
-               'delete-matching-lines 'delete-non-matching-lines 'count-matches)
+               'delete-matching-lines 'delete-non-matching-lines 'count-matches
+               ;; From s.el
+               's-matches? 's-matches-p 's-match-strings-all
+               's-matched-positions-all 's-match 's-slice-at
+               's-count-matches 's-count-matches-all 's-split 's-split-up-to)
           ,re-arg . ,_)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
