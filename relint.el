@@ -1154,6 +1154,22 @@ source."
                                 (if literal (cons 1 elem-path) elem-path))))
    form path))
 
+(defun relint--check-font-lock-defaults (form name pos path)
+  "Check a value for `font-lock-defaults'."
+  (let ((val (relint--eval-or-nil form)))
+    (when (consp val)
+     (cond
+      ((symbolp (car val))
+       (unless (memq (car val) relint--checked-variables)
+         (relint--check-font-lock-keywords (car val) name pos path)))
+      ((consp (car val))
+       (let ((keywords (car val)))
+         (while keywords
+           (when (and (symbolp (car keywords))
+                      (not (memq (car keywords) relint--checked-variables)))
+             (relint--check-font-lock-keywords (car keywords) name pos path))
+           (setq keywords (cdr keywords)))))))))
+
 (defun relint--check-font-lock-keywords (form name pos path)
   "Check a font-lock-keywords list.  A regexp can be found in an element,
 or in the car of an element."
@@ -1761,8 +1777,11 @@ directly."
            (cond
             ((memq name relint--known-regexp-variables)
              (relint--check-re expr name pos (cons i path)))
-            ((memq name '(font-lock-defaults font-lock-keywords))
+            ((and (symbolp name) (string-match-p (rx "font-lock-keywords")
+                                                 (symbol-name name)))
              (relint--check-font-lock-keywords expr name pos (cons i path)))
+            ((eq name 'font-lock-defaults)
+             (relint--check-font-lock-defaults expr name pos (cons i path)))
             ((eq name 'imenu-generic-expression)
              (relint--check-imenu-generic-expression
               expr name pos (cons i path)))
@@ -1969,8 +1988,8 @@ directly."
                                   (symbol-name name)))
               (relint--check-list re-arg name pos (cons 2 path) nil)
               (push name relint--checked-variables))
-             ((string-match-p (rx "font-lock-keywords")
-                              (symbol-name name))
+             ((and (symbolp name) (string-match-p (rx "font-lock-keywords")
+                                                  (symbol-name name)))
               (relint--check-font-lock-keywords re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
              ((eq name 'compilation-error-regexp-alist-alist)
@@ -2040,7 +2059,10 @@ directly."
        (`(set (make-local-variable ',name) ,expr)
         (cond ((memq name relint--known-regexp-variables)
                (relint--check-re expr name pos (cons 2 path)))
-              ((memq name '(font-lock-defaults font-lock-keywords))
+              ((eq name 'font-lock-defaults)
+               (relint--check-font-lock-defaults expr name pos (cons 2 path)))
+              ((and (symbolp name) (string-match-p (rx "font-lock-keywords")
+                                                   (symbol-name name)))
                (relint--check-font-lock-keywords expr name pos (cons 2 path)))
               ((eq name 'imenu-generic-expression)
                (relint--check-imenu-generic-expression
