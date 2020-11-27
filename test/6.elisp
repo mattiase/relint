@@ -17,7 +17,11 @@
    (format "[%s]" (regexp-quote x))
    (format "[%s]" (myrefun y))
    (format "[%s]" (rx ?a "b" nonl))
-   (format "[%s]" (rx-to-string z))))
+   (format "[%s]" (rx-to-string z))
+   (format "[%s]" (f (string-match (regexp-quote x) a))) ; ok
+   (format "[%s]" (f (replace-regexp-in-string (regexp-quote x) a b))) ; ok
+   (format "[%s]" (f (replace-regexp-in-string a b (regexp-quote x)))) ; bad
+   ))
 
 ;; Test skip-chars
 (defun test-skip-chars (x y z)

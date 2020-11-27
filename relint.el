@@ -1284,12 +1284,36 @@ EXPANDED is a list of expanded functions, to prevent recursion."
    ((atom expr) nil)
    ((memq (car expr) relint--regexp-returning-functions)
     (list (car expr)))
-   ((memq (car expr) '(looking-at re-search-forward re-search-backward
-                       string-match string-match-p looking-back looking-at-p))
+   ((memq (car expr)
+          ;; These forms never produce regexps at all, but are listed here
+          ;; to prevent false positives since their bodies often do.
+          '(while
+            looking-at re-search-forward re-search-backward
+            string-match string-match-p looking-back looking-at-p
+            replace-regexp
+            query-replace-regexp
+            posix-looking-at posix-search-backward
+            posix-search-forward
+            posix-string-match
+            search-forward-regexp search-backward-regexp
+            kill-matching-buffers
+            keep-lines flush-lines how-many
+            delete-matching-lines delete-non-matching-lines
+            count-matches
+            s-matches? s-matches-p s-matched-positions-all
+            s-count-matches s-count-matches-all))
     nil)
    ((null (cdr (last expr)))
     (let* ((head (car expr))
-           (args (if (memq head '(if when unless while))
+           (args
+            (if (memq head
+                      ;; These forms may generate regexps but the provenance
+                      ;; of their first argument is irrelevant.
+                      ;; This list, too, could be expanded vastly.
+                      '(if when unless
+                        replace-regexp-in-string
+                        s-match-strings-all s-match s-slice-at
+                        s-split s-split-up-to))
                      (cddr expr)
                    (cdr expr)))
            (alias (assq head relint--alias-defs)))
