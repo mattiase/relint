@@ -943,7 +943,7 @@ not be evaluated safely."
        ((eq head 'featurep)
         (let ((arg (relint--eval (car body))))
           (cond ((eq arg 'xemacs) nil)
-                ((memq arg '(emacs mule)) t)
+                ((memq arg '(emacs mule font-lock lisp-float-type)) t)
                 (t (throw 'relint-eval 'no-value)))))
 
        ;; Locally defined functions: try evaluating.
