@@ -2251,9 +2251,9 @@ STRING-START is the start of the string literal (first double quote)."
                                   (seq ";" (0+ nonl))
                                   (not (any ?\" ?\; ?? ?\\))))))
       (goto-char (match-end 0)))
-    (when (looking-at (rx ?\"))
+    (when (eq (following-char) ?\")
       (let ((string-start (point)))
-        (goto-char (match-end 0))
+        (forward-char)
         (while (not (looking-at (rx (or ?\" eot))))
           (when (looking-at
                  (rx (1+ (or (seq ?\\ (any "0-9" "xuUN" "abfnrtv"
