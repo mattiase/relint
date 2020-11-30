@@ -4,7 +4,7 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.19
-;; Package-Requires: ((xr "1.19") (emacs "26.1"))
+;; Package-Requires: ((xr "1.20") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
