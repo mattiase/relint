@@ -2391,10 +2391,13 @@ TARGET is the file or directory to use for a repeated run."
     (cons total-errors total-suppressed)))
 
 (defun relint--tree-files (dir)
-  (directory-files-recursively
-   dir (rx bos (not (any ".")) (* anything) ".el" eos) nil
-   ;; Save time by not pointlessly descending into huge .git directories.
-   (lambda (s) (not (string-suffix-p "/.git" s)))))
+  (let ((re (rx bos (not (any ".")) (* anything) ".el" eos)))
+    (if (>= emacs-major-version 27)
+        (directory-files-recursively
+         dir re nil
+         ;; Save time by not pointlessly descending into huge .git directories.
+         (lambda (s) (not (string-suffix-p "/.git" s))))
+      (directory-files-recursively dir re))))
 
 (defun relint--scan-buffer (buffer)
   "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
