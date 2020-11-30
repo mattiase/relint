@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.18
+;; Version: 1.19
 ;; Package-Requires: ((xr "1.19") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
@@ -29,6 +29,12 @@
 
 ;;; News:
 
+;; Version 1.19
+;; - Progress indicator in `relint-directory'
+;; - Some performance improvements
+;; - Fix some false positives in the regexp provenance detector
+;; - Scan assignments to `font-lock-defaults' correctly
+;; - Recognise regexp arguments to functions in the s.el package
 ;; Version 1.18:
 ;; - New check for ineffective backslashes in all strings (not just regexps)
 ;; - Warnings emitted in order of their position in file or buffer
