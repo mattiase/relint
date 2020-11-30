@@ -2392,7 +2392,7 @@ TARGET is the file or directory to use for a repeated run."
 
 (defun relint--tree-files (dir)
   (let ((re (rx bos (not (any ".")) (* anything) ".el" eos)))
-    (if (>= emacs-major-version 27)
+    (if (eval-when-compile (>= emacs-major-version 27))
         (directory-files-recursively
          dir re nil
          ;; Save time by not pointlessly descending into huge .git directories.
