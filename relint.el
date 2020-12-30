@@ -747,9 +747,15 @@ not be evaluated safely."
        ;; may expand their arguments eagerly, running arbitrary code!
        ((memq head '(when unless
                      \` backquote-list*
-                     pcase pcase-let pcase-let* pcase--flip
                      cl-case cl-loop cl-block cl-flet cl-flet* cl-labels))
         (relint--eval (macroexpand-1 form)))
+
+       ;; Expanding pcase can fail if it uses user-defined pcase macros.
+       ((memq head '(pcase pcase-let pcase-let* pcase--flip))
+        (relint--eval
+         (condition-case nil
+             (macroexpand-1 form)
+           (error (throw 'relint-eval 'no-value)))))
 
        ;; catch: as long as nobody throws, this naïve code is fine.
        ((eq head 'catch)

@@ -49,12 +49,12 @@
 4.elisp:48:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*"
    ^
-4.elisp:55:15: In call to looking-at: Unescaped literal `*' (pos 0)
+4.elisp:56:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*b"
    ^
-4.elisp:56:15: In call to looking-at: Unescaped literal `*' (pos 0)
+4.elisp:57:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*bc"
    ^
-4.elisp:62:15: In call to looking-at: Unescaped literal `*' (pos 0)
+4.elisp:63:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*a"
    ^

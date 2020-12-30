@@ -45,7 +45,8 @@
   (looking-at (unless nil "c++"))
   (looking-at (string-join `("a" ,@(list "$") ,"b")))
   (looking-at (pcase 'a ((pred symbolp) "d++")))
-  (looking-at (cl-case 'z (b "m") (z "*"))))
+  (looking-at (cl-case 'z (b "m") (z "*")))
+  (looking-at (pcase 'q ((myhomemademacro) "**"))))
 
 ;; Test repeated use of global variable
 (defconst my-var-a "*")
