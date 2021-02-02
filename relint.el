@@ -428,15 +428,15 @@ or (NAME val VAL), for values.")
     car cdr caar cadr cdar cddr car-safe cdr-safe nth nthcdr
     caaar cdaar cadar cddar caadr cdadr caddr cdddr
     format format-message
-    regexp-quote regexp-opt regexp-opt-charset
+    regexp-quote regexp-opt regexp-opt-charset regexp-opt-depth
     reverse
     member memq memql remove remq member-ignore-case
     assoc assq rassoc rassq assoc-string
     identity
     string make-string make-list
-    substring
+    substring substring-no-properties
     length safe-length
-    symbol-name
+    symbol-name gensym
     intern intern-soft make-symbol
     null not xor
     eq eql equal
@@ -454,7 +454,7 @@ or (NAME val VAL), for values.")
     vector aref elt vconcat
     char-to-string string-to-char
     number-to-string string-to-number int-to-string
-    string-to-list string-to-vector string-or-null-p
+    string-to-list string-to-vector string-or-null-p string-bytes
     upcase downcase capitalize
     purecopy copy-sequence copy-alist copy-tree
     flatten-tree
@@ -462,11 +462,12 @@ or (NAME val VAL), for values.")
     last butlast number-sequence
     plist-get plist-member
     1value
-    consp atom stringp symbolp listp nlistp booleanp
-    integerp numberp natnump fixnump bignump characterp zerop
-    sequencep vectorp arrayp
-    + - * / % mod 1+ 1- max min < <= = > >= /= abs
-    ash lsh logand logior logxor)
+    consp atom stringp symbolp listp nlistp booleanp keywordp
+    integerp numberp natnump fixnump bignump characterp zerop floatp
+    sequencep vectorp arrayp type-of
+    + - * / % mod 1+ 1- max min < <= = > >= /= abs expt sqrt
+    ash lsh logand logior logxor lognot logb logcount
+    floor ceiling round truncate float)
   "Functions that are safe to call during evaluation.
 Except for altering the match state, these are side-effect-free
 and reasonably pure (some depend on variables in fairly uninteresting ways,
@@ -718,7 +719,8 @@ not be evaluated safely."
                  ;; Syntax error
                  (throw 'relint-eval 'no-value)))))
 
-       ((memq head '(progn ignore-errors eval-when-compile eval-and-compile))
+       ((memq head '(progn ignore-errors eval-when-compile eval-and-compile
+                     with-no-warnings))
         (relint--eval-body body))
 
        ;; Hand-written implementation of `cl-assert' -- good enough.
@@ -747,6 +749,7 @@ not be evaluated safely."
        ;; may expand their arguments eagerly, running arbitrary code!
        ((memq head '(when unless
                      \` backquote-list*
+                     letrec
                      cl-case cl-loop cl-block cl-flet cl-flet* cl-labels))
         (relint--eval (macroexpand-1 form)))
 
