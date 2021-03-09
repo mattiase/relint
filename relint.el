@@ -2269,7 +2269,7 @@ STRING-START is the start of the string literal (first double quote)."
     (when (eq (following-char) ?\")
       (let ((string-start (point)))
         (forward-char)
-        (while (not (looking-at (rx (or ?\" eot))))
+        (while (not (memq (char-after) '(?\" nil)))
           (when (looking-at
                  (rx (1+ (or (seq ?\\ (any "0-9" "xuUN" "abfnrtv"
                                            "des" "^" " "
