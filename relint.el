@@ -2378,7 +2378,8 @@ TARGET is the file or directory to use for a repeated run."
       (when (and (not noninteractive)
                  (zerop (% count 50)))
         (message "Scanned %d/%d file%s..."
-                 count nfiles (if (= nfiles 1) "" "s")))
+                 count nfiles (if (= nfiles 1) "" "s"))
+        (sit-for 0))
       (setq count (1+ count))
       (with-temp-buffer
         (emacs-lisp-mode)
@@ -2444,6 +2445,7 @@ and SUPPRESSED is the number of suppressed diagnostics."
   "Scan all *.el files in DIR for regexp-related errors."
   (interactive "DRelint directory: ")
   (message "Finding .el files in %s..." dir)
+  (sit-for 0)
   (let ((files (relint--tree-files dir)))
     (if files
         (relint--scan-files files dir dir (relint--get-error-buffer))
