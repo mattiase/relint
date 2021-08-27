@@ -34,5 +34,8 @@ jobs:
           repository: mattiase/xr
           path: xr
 
+      - name: Byte-compile
+        run: make -C relint build
+
       - name: Test
-        run: make -C relint build check
+        run: make -C relint check
