@@ -2356,9 +2356,9 @@ STRING-START is the start of the string literal (first double quote)."
 (defvar relint-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map compilation-minor-mode-map)
-    (define-key map "n" 'next-error-no-select)
-    (define-key map "p" 'previous-error-no-select)
-    (define-key map "g" 'relint-again)
+    (define-key map "n" #'next-error-no-select)
+    (define-key map "p" #'previous-error-no-select)
+    (define-key map "g" #'relint-again)
     map)
   "Keymap for relint buffers.")
 
