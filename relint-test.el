@@ -146,3 +146,22 @@ and a path."
                      ("In call to string-match: Unterminated character alternative"
                       125 nil "[xy" nil error)))))
       (kill-buffer buf))))
+
+(ert-deftest relint-buffer-huge ()
+  ;; Regression test for regexp stack overflow in the scan for ineffective
+  ;; backslashes.
+  (should (equal
+           (with-temp-buffer
+             (emacs-lisp-mode)
+             (insert "(message \"hello\\? anyone?\")\n")
+             (insert "(defconst my-const '(")
+             (dotimes (i 200000)
+               (insert (format "%d " i)))
+             (insert "))\n")
+             (insert "(message \"goodbye\\! everyone!\")\n")
+             (let ((text-quoting-style 'grave))
+               (relint-buffer (current-buffer))))
+           '(("Ineffective string escape `\\?'" 16 nil nil nil warning)
+             ("Ineffective string escape `\\!'" 1288960 nil nil nil warning)))))
+
+(provide 'relint-test)
