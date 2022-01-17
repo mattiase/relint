@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.19
-;; Package-Requires: ((xr "1.20") (emacs "26.1"))
+;; Version: 1.20
+;; Package-Requires: ((xr "1.22") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -29,6 +29,8 @@
 
 ;;; News:
 
+;; Version 1.20
+;; - More compact distribution
 ;; Version 1.19
 ;; - Progress indicator in `relint-directory'
 ;; - Some performance improvements
