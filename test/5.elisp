@@ -73,3 +73,8 @@
 
 (defun test-prog2 ()
   (looking-at (prog2 "a" "[VV]" "b" "c")))
+
+;; Make sure we don't enter infinite recursion when checking this one.
+(defalias 'test-recursive
+  #'(lambda (x)
+      (if x (test-recursive (cdr x)) 'ok)))
