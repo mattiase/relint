@@ -1686,7 +1686,10 @@ than just to a surrounding or producing expression."
      ;; (function SYMBOL), to avoid infinite recursion.
      (let ((name (relint--eval-or-nil name-arg))
            (def  (relint--eval-or-nil def-arg)))
-       (when (and name def)
+       (when (and name def
+                  ;; Prevent alias loops.
+                  (not (eq name def))
+                  (not (assq def relint--alias-defs)))
          (push (cons name def) relint--alias-defs))))
     (_
      (let ((index 0))

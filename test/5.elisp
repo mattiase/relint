@@ -78,3 +78,19 @@
 (defalias 'test-recursive
   #'(lambda (x)
       (if x (test-recursive (cdr x)) 'ok)))
+
+;; Check for alias loops.
+(defalias 'test-recursive-0 'test-recursive-0)
+(test-recursive-0 'z)
+
+(defalias 'test-recursive-1 'test-recursive-2)
+(defalias 'test-recursive-2 'test-recursive-1)
+(test-recursive-1 'a)
+(test-recursive-2 'b)
+
+(defalias 'test-recursive-3 'test-recursive-4)
+(defalias 'test-recursive-4 'test-recursive-5)
+(defalias 'test-recursive-5 'test-recursive-3)
+(test-recursive-3 'c)
+(test-recursive-4 'd)
+(test-recursive-3 'e)
