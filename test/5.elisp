@@ -74,6 +74,9 @@
 (defun test-prog2 ()
   (looking-at (prog2 "a" "[VV]" "b" "c")))
 
+;; Don't complain (just skip) the following.
+(defconst my-circle '(#1=a . #1#))
+
 ;; Make sure we don't enter infinite recursion when checking this one.
 (defalias 'test-recursive
   #'(lambda (x)
@@ -94,3 +97,4 @@
 (test-recursive-3 'c)
 (test-recursive-4 'd)
 (test-recursive-3 'e)
+

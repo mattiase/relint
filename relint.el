@@ -2204,7 +2204,7 @@ Return a list of (FORM . STARTING-POSITION)."
            (setq keep-going nil))
           (invalid-read-syntax
            (cond
-            ((equal (cadr err) "#")
+            ((member (cadr err) '("#" "#="))
              (goto-char pos)
              (forward-sexp 1))
             (t
