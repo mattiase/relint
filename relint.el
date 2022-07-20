@@ -461,7 +461,7 @@ or (NAME val VAL), for values.")
     purecopy copy-sequence copy-alist copy-tree
     flatten-tree
     member-ignore-case
-    last butlast number-sequence
+    last butlast number-sequence take
     plist-get plist-member
     1value
     consp atom stringp symbolp listp nlistp booleanp keywordp
@@ -482,7 +482,8 @@ help in evaluating more regexp strings.")
     (delete   . remove)
     (delq     . remq)
     (nreverse . reverse)
-    (nbutlast . butlast))
+    (nbutlast . butlast)
+    (ntake    . take))
 "Alist mapping non-safe functions to semantically equivalent safe
 alternatives.")
 
@@ -613,6 +614,13 @@ into something that can be called safely."
         (throw 'relint-eval 'no-value)
       nil)))
 
+(defalias 'relint--take
+  (if (fboundp 'take)
+      #'take
+    (lambda (n list)
+      "The N first elements of LIST."
+      (cl-loop repeat n for x in list collect x))))
+
 (defun relint--eval (form)
   "Evaluate a form. Throw 'relint-eval 'no-value if something could
 not be evaluated safely."
@@ -674,11 +682,11 @@ not be evaluated safely."
        ;; alist-get: wrap the optional fifth argument (testfn).
        ((eq head 'alist-get)
         (let* ((all-args (mapcar #'relint--eval body))
-               (args (if (< (length all-args) 5)
+               (testfn (nth 4 all-args))
+               (args (if testfn
                          all-args
-                       (append (butlast all-args (- (length all-args) 4))
-                               (list (relint--wrap-function
-                                      (nth 4 all-args)))))))
+                       (append (relint--take 4 all-args)
+                               (list (relint--wrap-function testfn))))))
           (condition-case nil
               (apply head args)
             (error (throw 'relint-eval 'no-value)))))
