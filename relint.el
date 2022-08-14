@@ -502,7 +502,7 @@ alternatives.")
 alternatives. They may still require wrapping their function arguments.")
 
 (defun relint--rx-safe (rx)
-  "Return RX safe to translate; throw 'relint-eval 'no-value if not."
+  "Return RX safe to translate; throw `relint-eval' `no-value' if not."
   (cond
    ((atom rx) rx)
    ;; These cannot contain rx subforms.
@@ -622,7 +622,7 @@ into something that can be called safely."
       (cl-loop repeat n for x in list collect x))))
 
 (defun relint--eval (form)
-  "Evaluate a form. Throw 'relint-eval 'no-value if something could
+  "Evaluate a form. Throw `relint-eval' `no-value' if something could
 not be evaluated safely."
   (if (atom form)
       (cond
