@@ -761,13 +761,18 @@ not be evaluated safely."
                      \` backquote-list*
                      letrec
                      cl-case cl-loop cl-block cl-flet cl-flet* cl-labels))
-        (relint--eval (macroexpand-1 form)))
+        (relint--eval
+         ;; Suppress any warning message arising from macro-expansion;
+         ;; it will just confuse the user and we can't give a good location.
+         (let ((inhibit-message t))
+           (macroexpand-1 form))))
 
        ;; Expanding pcase can fail if it uses user-defined pcase macros.
        ((memq head '(pcase pcase-let pcase-let* pcase--flip))
         (relint--eval
          (condition-case nil
-             (macroexpand-1 form)
+             (let ((inhibit-message t))
+               (macroexpand-1 form))
            (error (throw 'relint-eval 'no-value)))))
 
        ;; catch: as long as nobody throws, this naïve code is fine.
@@ -1055,7 +1060,8 @@ evaluated are nil."
     (relint--eval-list (cadr form)))
 
    ((memq (car form) '(\` backquote-list*))
-    (relint--eval-list (macroexpand-1 form)))
+    (relint--eval-list (let ((inhibit-message t))
+                         (macroexpand-1 form))))
 
    ((assq (car form) relint--safe-alternatives)
     (relint--eval-list (cons (cdr (assq (car form) relint--safe-alternatives))
