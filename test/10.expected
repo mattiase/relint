@@ -22,9 +22,12 @@
 10.elisp:15:13: In test-2-regexp-alist: Duplicated `h' inside character alternative (pos 2)
   "[hh]"
    ..^
-10.elisp:19:9: In test-3-regexp-alist: Duplicated `i' inside character alternative (pos 2)
+10.elisp:16:24: Single-character range `z-z' (pos 0)
+  "z-z"
+   ^
+10.elisp:20:9: In test-3-regexp-alist: Duplicated `i' inside character alternative (pos 2)
   "[ii]"
    ..^
-10.elisp:19:18: In test-3-regexp-alist: Duplicated `j' inside character alternative (pos 2)
+10.elisp:20:18: In test-3-regexp-alist: Duplicated `j' inside character alternative (pos 2)
   "[jj]"
    ..^

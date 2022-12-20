@@ -12,7 +12,8 @@
     ,(cons 'd "[dd]")
     (e . ,(concat "[e" "e]"))
     ,@(list '(f . "[ff]") '(g . "[gg]"))
-    (i . "[hh]")))
+    (i . "[hh]")
+    (j . ((rx bol (in "z-z"))))))
 
 (defconst test-3-regexp-alist
   (list

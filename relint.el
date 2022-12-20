@@ -145,6 +145,13 @@ and PATH is (3 0 1 2), then the returned position is right before G."
       (relint--skip-whitespace)
       (let ((skip (car p)))
         ;; Enter next sexp and skip past the `skip' first sexps inside.
+        (when (looking-at (rx "."))
+          ;; Skip `. (' since it represents zero sexps.
+          (forward-char)
+          (relint--skip-whitespace)
+          (when (looking-at (rx "("))
+            (forward-char)
+            (relint--skip-whitespace)))
         (cond
          ((looking-at (rx (or "'" "#'" "`" ",@" ",")))
           (goto-char (match-end 0))
