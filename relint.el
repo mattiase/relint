@@ -691,9 +691,9 @@ not be evaluated safely."
         (let* ((all-args (mapcar #'relint--eval body))
                (testfn (nth 4 all-args))
                (args (if testfn
-                         all-args
-                       (append (relint--take 4 all-args)
-                               (list (relint--wrap-function testfn))))))
+                         (append (relint--take 4 all-args)
+                                 (list (relint--wrap-function testfn)))
+                       all-args)))
           (condition-case nil
               (apply head args)
             (error (throw 'relint-eval 'no-value)))))
@@ -2269,7 +2269,7 @@ Return a list of (FORM . STARTING-POSITION)."
                                 ;; Specific to cc-mode
                                 "c-lang-defconst"))))
        (and (= steps 4)
-            (looking-at (rx (or "define-derived-mode"))))))))
+            (looking-at (rx "define-derived-mode")))))))
 
 (defun relint--suspicious-backslash (string-start)
   "With point at an ineffective backslash, emit an warning unless filtered out.
