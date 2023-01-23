@@ -111,6 +111,7 @@
 (require 'xr)
 (require 'compile)
 (require 'cl-lib)
+(require 'subr-x)
 
 (defun relint--get-error-buffer ()
   "Buffer to which errors are printed, or nil if noninteractive."
