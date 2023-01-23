@@ -59,3 +59,7 @@
 11.elisp:33:25: Range `\000-\377' overlaps previous `\240-\277' (pos 0)
   "\000-\377"
    ^
+11.elisp:35:17: Duplicated rx form in or-pattern: ?A
+11.elisp:35:20: Duplicated rx form in or-pattern: "def"
+11.elisp:36:10: Duplicated rx form in or-pattern: "abc"
+11.elisp:36:16: Duplicated rx form in or-pattern: (= 3 ?*)

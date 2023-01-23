@@ -1470,6 +1470,23 @@ than just to a surrounding or producing expression."
             'group 'submatch
             'group-n 'submatch-n)
        . ,args)
+     (when (memq (car item) '(| or))
+       ;; Check or-patterns for duplicates, because if rx runs `regexp-opt'
+       ;; on them then they are effectively deduplicated and we'd never
+       ;; know about it.
+       (let ((i 1)
+             (tail args))
+         (while (consp tail)
+           (when (member (car tail) (cdr tail))
+             (relint--warn pos (if exact-path (cons i path) path)
+                           (format-message
+                            "Duplicated rx form in or-pattern: %s"
+                             (replace-regexp-in-string
+                              (rx (+ (in " \n"))) " "
+                              (string-trim (xr-pp-rx-to-str (car tail)))
+                              t t))))
+           (setq i (1+ i))
+           (setq tail (cdr tail)))))
      ;; Form with subforms: recurse.
      (let ((i 1))
        (dolist (arg args)

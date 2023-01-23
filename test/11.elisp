@@ -31,4 +31,7 @@
   (rx (any "a-z" ?m))
   (rx (any "a-f" "\000-\377"))
   (rx (any "\240-\277" "\000-\377"))
+
+  (rx (or "abc" ?A "def" "ghi" ?A "def"))
+  (rx (| "abc" (= 3 ?*) "def" (= 3 ?*) "ghi" "abc"))
   )
