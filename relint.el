@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.20
+;; Version: 1.21
 ;; Package-Requires: ((xr "1.22") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
@@ -29,6 +29,9 @@
 
 ;;; News:
 
+;; Version 1.21
+;; - Check for duplicates in rx or-forms
+;; - Robustness improvements
 ;; Version 1.20
 ;; - More compact distribution
 ;; Version 1.19
