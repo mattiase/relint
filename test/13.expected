@@ -28,5 +28,3 @@
 13.elisp:19:16: Ineffective string escape `\q'
 13.elisp:22:16: Ineffective string escape `\8'
 13.elisp:22:19: Ineffective string escape `\9'
-13.elisp:23:17: Character escape `\x' not followed by hex digit
-13.elisp:23:21: Character escape `\x' not followed by hex digit

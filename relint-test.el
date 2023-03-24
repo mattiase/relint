@@ -164,4 +164,26 @@ and a path."
            '(("Ineffective string escape `\\?'" 16 nil nil nil warning)
              ("Ineffective string escape `\\!'" 1288960 nil nil nil warning)))))
 
+(ert-deftest relint-bad-hex-escape ()
+  ;; Test the bad \x character escape warning. We do this separately because
+  ;; it signals an error in newer Emacs.
+  (let ((buf (get-buffer-create " *relint-test*"))
+        (text-quoting-style 'grave))
+    (unwind-protect
+        (progn
+          (with-current-buffer buf
+            (emacs-lisp-mode)
+            (insert "(print \"c \\xf \\xg \\x d\")\n"))
+          (let* ((diags (relint-buffer buf))
+                 (err (assoc "(error \"Invalid escape character syntax\")"
+                             diags)))
+            (should (equal
+                     (remove err diags)
+                   '(("Character escape `\\x' not followed by hex digit"
+                      15 nil nil nil warning)
+                     ("Character escape `\\x' not followed by hex digit"
+                      19 nil nil nil warning)
+                     )))))
+      (kill-buffer buf))))
+
 (provide 'relint-test)

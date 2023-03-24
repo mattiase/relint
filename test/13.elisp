@@ -19,5 +19,4 @@ and \a \b \f \n \r \t \v \d \e \s \^P"))
   '("bracketed \q string"))
 
 (defun f3 ()
-  (print "a \7 \8 \9 b")
-  (print "c \xf \xg \x d"))
+  (print "a \7 \8 \9 b"))
