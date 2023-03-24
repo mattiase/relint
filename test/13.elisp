@@ -17,3 +17,7 @@ and \a \b \f \n \r \t \v \d \e \s \^P"))
 (defun f2 ()
   (re-search-forward "\$\.x\+\+")
   '("bracketed \q string"))
+
+(defun f3 ()
+  (print "a \7 \8 \9 b")
+  (print "c \xf \xg \x d"))

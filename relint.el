@@ -2303,9 +2303,12 @@ STRING-START is the start of the string literal (first double quote)."
                 (and (memq c '(?\( ?\) ?\[ ?\] ?\'))
                      (relint--in-doc-string-p string-start)))
       (relint--warn (point) nil
-                    (format-message
-                     "Ineffective string escape `\\%s'"
-                     (relint--escape-string (char-to-string c) nil))))))
+                    (if (eq c ?x)
+                        (format-message
+                         "Character escape `\\x' not followed by hex digit")
+                      (format-message
+                       "Ineffective string escape `\\%s'"
+                       (relint--escape-string (char-to-string c) nil)))))))
 
 (defun relint--check-for-misplaced-backslashes ()
   "Check for misplaced backslashes in the current buffer."
@@ -2322,10 +2325,11 @@ STRING-START is the start of the string literal (first double quote)."
         (forward-char)
         (while (not (memq (char-after) '(?\" nil)))
           (when (looking-at
-                 (rx (1+ (or (seq ?\\ (any "0-9" "xuUN" "abfnrtv"
+                 (rx (1+ (or (seq ?\\ (or (any "0-7" "uUN" "abfnrtv"
                                            "des" "^" " "
                                            ?\\ ?\n ?\"
-                                           "CM"))
+                                           "CM")
+                                          (seq "x" xdigit)))
                              (not (any ?\\ ?\"))))))
             (goto-char (match-end 0)))
           (when (eq (following-char) ?\\)
