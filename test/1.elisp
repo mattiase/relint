@@ -112,3 +112,6 @@
    ("thing" stuff)
    ("$3$" bad)
    ("^4^" alsobad)))
+
+(defvar my-ts--font-lock-rules '(((a) (:match "[55]" @a))))
+(defvar my-ts-mode-font-lock-rules '(((b) (:match "[66]" @b))))

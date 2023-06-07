@@ -1232,6 +1232,79 @@ or in the car of an element."
         (relint--check-re-string (car elem) ident pos p)))))
    form path))
 
+(defun relint--check-treesit-query (form name pos path)
+  "Recursively check tree-sitter :match regexps in EXPR.
+FORM is assumed a non-literal in the source."
+  (pcase form
+    (`(,_ . ,(or `((:match ,(and (pred stringp) re) . ,_))
+                 ;; Optional capture name.
+                 `(,(pred symbolp)
+                   (:match ,(and (pred stringp) re) . ,_))))
+     (relint--check-re-string re name pos path))
+    ((pred consp)
+     (while (consp form)
+       (relint--check-treesit-query (car form) name pos path)
+       (setq form (cdr form))))
+    ((pred vectorp)
+     (dotimes (i (length form))
+       (relint--check-treesit-query (aref form i) name pos path)))))
+
+(defun relint--check-treesit-font-lock-rules (form name pos path)
+  "Check tree-sitter font lock queries.
+Evaluate and validate FORM as an arglist for
+`treesit-font-lock-rules'."
+  (relint--eval-list-iter
+   (let (skip-next)
+     (lambda (elem elem-path _literal)
+       (let ((skip skip-next))
+         ;; Skip leading plists.
+         (setq skip-next (keywordp elem))
+         (unless (or skip skip-next)
+           (relint--check-treesit-query elem name pos elem-path)))))
+   form path))
+
+(defun relint--check-treesit-indent-rule (form name pos path literal)
+  "Check regexps in tree-sitter indentation matcher FORM."
+  (pcase form
+    ;; Optional arguments.
+    (`(match . ,items)
+     (dotimes (i 3)
+       (when (stringp (car-safe items))
+         (relint--check-re-string
+          (car items) name pos (if literal (cons (1+ i) path) path)))
+       (setq items (cdr-safe items))))
+    ;; Required arguments.
+    (`(n-p-gp ,_ ,_ ,_ . ,_)
+     (let ((items (cdr form)))
+       (dotimes (i 3)
+         (when (stringp (car items))
+           (relint--check-re-string
+            (car items) name pos (if literal (cons (1+ i) path) path)))
+         (setq items (cdr items)))))
+    (`(,(or 'parent-is 'node-is 'field-is)
+       ,(and (pred stringp) re) . ,_)
+     (relint--check-re-string re name pos (if literal (cons 1 path) path)))))
+
+(defun relint--check-treesit-indent-rules (form name pos path)
+  "Check tree-sitter indentation rules.
+Evaluate and validate FORM as a value for
+`treesit-simple-indent-rules'."
+  (relint--eval-list-iter
+   (lambda (lang lang-path literal)
+     (let ((lang-name (if (consp lang) (format "%s (%s)" name (car lang)) name))
+           (rules (cdr-safe lang))
+           (i 1))
+       (while (consp rules)
+         (let ((matcher (car-safe (car rules))))
+           (when matcher
+             (let ((matcher-path
+                    (if literal (cons 0 (cons i lang-path)) lang-path)))
+               (relint--check-treesit-indent-rule
+                matcher lang-name pos matcher-path literal))))
+         (setq rules (cdr rules))
+         (setq i (1+ i)))))
+   form path))
+
 (defun relint--check-imenu-generic-expression (form name pos path)
   (relint--eval-list-iter
    (lambda (elem elem-path literal)
@@ -1291,8 +1364,9 @@ or in the car of an element."
    form path))
 
 (defconst relint--known-regexp-variables
-  '(page-delimiter paragraph-separate paragraph-start
-    sentence-end comment-start-skip comment-end-skip)
+  '( page-delimiter paragraph-separate paragraph-start
+     sentence-end comment-start-skip comment-end-skip
+     treesit-sentence-type-regexp treesit-sexp-type-regexp)
   "List of known (global or buffer-local) regexp variables.")
 
 (defconst relint--known-regexp-returning-functions
@@ -1302,6 +1376,10 @@ or in the car of an element."
     find-tag-default-as-symbol-regexp sentence-end
     word-search-regexp)
   "List of functions known to return a regexp.")
+
+(defconst relint--known-imenu-variables
+  '(imenu-generic-expression treesit-simple-imenu-settings)
+  "List of known buffer-local Imenu index-defining variables.")
 
 ;; List of functions believed to return a regexp.
 (defvar relint--regexp-returning-functions)
@@ -1873,7 +1951,7 @@ directly."
              (relint--check-font-lock-keywords expr name pos (cons i path)))
             ((eq name 'font-lock-defaults)
              (relint--check-font-lock-defaults expr name pos (cons i path)))
-            ((eq name 'imenu-generic-expression)
+            ((memq name relint--known-imenu-variables)
              (relint--check-imenu-generic-expression
               expr name pos (cons i path)))
             ((eq name 'auto-mode-alist)
@@ -1884,6 +1962,13 @@ directly."
                (`(append ,items auto-mode-alist)
                 (relint--check-auto-mode-alist
                  items name pos (cons 1 (cons i path))))))
+            ((eq name 'treesit-simple-indent-rules)
+             (relint--check-treesit-indent-rules expr name pos (cons i path)))
+            ((eq name 'treesit-defun-type-regexp)
+             (let* ((val (relint--eval-or-nil expr))
+                    (re (or (car-safe val) val)))
+               (when (stringp re)
+                 (relint--check-re-string re name pos (cons i path)))))
             (t
              ;; Invalidate the variable if it was local; otherwise, ignore.
              (let ((local (assq name relint--locals)))
@@ -1989,7 +2074,9 @@ directly."
         (relint--check-file-name-re re-arg (format "call to %s" (car form))
                                     pos (cons 2 path)))
        (`(,(or 'split-string 'split-string-and-unquote
-               'string-trim-left 'string-trim-right 'string-trim)
+               'string-trim-left 'string-trim-right 'string-trim
+               'treesit-induce-sparse-tree 'treesit-search-forward
+               'treesit-search-forward-goto 'treesit-search-subtree)
           ,_ ,re-arg . ,rest)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
@@ -2101,6 +2188,13 @@ directly."
                               (symbol-name name))
               (relint--check-rules-list re-arg name pos (cons 2 path))
               (push name relint--checked-variables))
+             ((string-match-p (rx (or (seq (or bos ?-) "treesit")
+                                      (seq "-ts" (opt "-mode") (opt ?-)))
+                                  "-font-lock-" (or "rules" "settings") eos)
+                              (symbol-name name))
+              (relint--check-treesit-font-lock-rules
+               re-arg name pos (cons 2 path))
+              (push name relint--checked-variables))
              ;; Doc string starting with "regexp" etc.
              ((and (stringp (car rest))
                    (let ((case-fold-search t))
@@ -2146,6 +2240,30 @@ directly."
        (`(font-lock-add-keywords ,_ ,keywords . ,_)
         (relint--check-font-lock-keywords
          keywords (car form) pos (cons 2 path)))
+       (`(,(or 'treesit-font-lock-rules 'treesit-range-rules) . ,items)
+        (let ((i 1))
+          (while (consp items)
+            (if (not (and (keywordp (car items))
+                          (consp (cdr items))))
+                (relint--check-treesit-query (relint--eval-list (car items))
+                                             (format "call to %s" (car form))
+                                             pos (cons i path))
+              ;; Skip leading plists.
+              (setq items (cdr items))
+              (setq i (1+ i)))
+            (setq items (cdr items))
+            (setq i (1+ i)))))
+       (`(treesit-query-expand ,query . ,_)
+        (relint--check-treesit-query (relint--eval-list query)
+                                     (format "call to %s" (car form))
+                                     pos (cons 1 path)))
+       (`(,(or 'treesit-node-top-level 'treesit-query-capture
+               'treesit-query-compile 'treesit-query-range
+               'treesit-query-string)
+          ,_ ,query . ,_)
+        (relint--check-treesit-query (relint--eval-list query)
+                                     (format "call to %s" (car form))
+                                     pos (cons 2 path)))
        (`(set (make-local-variable ',(and (pred symbolp) name)) ,expr)
         (cond ((memq name relint--known-regexp-variables)
                (relint--check-re expr name pos (cons 2 path)))
@@ -2153,7 +2271,7 @@ directly."
                (relint--check-font-lock-defaults expr name pos (cons 2 path)))
               ((string-match-p (rx "font-lock-keywords") (symbol-name name))
                (relint--check-font-lock-keywords expr name pos (cons 2 path)))
-              ((eq name 'imenu-generic-expression)
+              ((memq name relint--known-imenu-variables)
                (relint--check-imenu-generic-expression
                 expr name pos (cons 2 path)))))
        (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
