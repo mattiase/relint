@@ -97,69 +97,81 @@
 2.elisp:35:19: In call to count-matches: Unescaped literal `+' (pos 0)
   "+6"
    ^
-2.elisp:48:17: In call to f2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:36:34: In call to treesit-induce-sparse-tree: Unescaped literal `+' (pos 0)
+  "+7"
+   ^
+2.elisp:37:30: In call to treesit-search-forward: Unescaped literal `+' (pos 0)
+  "+8"
+   ^
+2.elisp:38:35: In call to treesit-search-forward-goto: Unescaped literal `+' (pos 0)
+  "+9"
+   ^
+2.elisp:39:30: In call to treesit-search-subtree: Unescaped literal `+' (pos 0)
+  "+10"
+   ^
+2.elisp:52:17: In call to f2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:48:31: In call to f2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:52:31: In call to f2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:48:45: In call to f2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:52:45: In call to f2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:48:59: In call to f2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:52:59: In call to f2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:48:73: In call to f2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:52:73: In call to f2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:49:17: In call to s2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:53:17: In call to s2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:49:31: In call to s2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:53:31: In call to s2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:49:45: In call to s2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:53:45: In call to s2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:49:59: In call to s2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:53:59: In call to s2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:49:73: In call to s2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:53:73: In call to s2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:50:17: In call to m2: Duplicated `B' inside character alternative (pos 2)
+2.elisp:54:17: In call to m2: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
-2.elisp:50:31: In call to m2: Duplicated `D' inside character alternative (pos 2)
+2.elisp:54:31: In call to m2: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
-2.elisp:50:45: In call to m2: Duplicated `F' inside character alternative (pos 2)
+2.elisp:54:45: In call to m2: Duplicated `F' inside character alternative (pos 2)
   "[FF]"
    ..^
-2.elisp:50:59: In call to m2: Duplicated `H' inside character alternative (pos 2)
+2.elisp:54:59: In call to m2: Duplicated `H' inside character alternative (pos 2)
   "[HH]"
    ..^
-2.elisp:50:73: In call to m2: Duplicated `J' inside character alternative (pos 2)
+2.elisp:54:73: In call to m2: Duplicated `J' inside character alternative (pos 2)
   "[JJ]"
    ..^
-2.elisp:58:17: In call to f5: Duplicated `b' inside character alternative (pos 2)
+2.elisp:62:17: In call to f5: Duplicated `b' inside character alternative (pos 2)
   "[bb]"
    ..^
-2.elisp:58:24: In call to f5: Duplicated `c' inside character alternative (pos 2)
+2.elisp:62:24: In call to f5: Duplicated `c' inside character alternative (pos 2)
   "[cc]"
    ..^
-2.elisp:58:31: In call to f5: Duplicated `d' inside character alternative (pos 2)
+2.elisp:62:31: In call to f5: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
-2.elisp:61:26: In :regexp parameter: Duplicated `1' inside character alternative (pos 2)
+2.elisp:65:26: In :regexp parameter: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
-2.elisp:62:20: In :regex parameter: Duplicated `2' inside character alternative (pos 2)
+2.elisp:66:20: In :regex parameter: Duplicated `2' inside character alternative (pos 2)
   "[22]"
    ..^
-2.elisp:65:31: In call to sort-regexp-fields: Unescaped literal `$' (pos 3)
+2.elisp:69:31: In call to sort-regexp-fields: Unescaped literal `$' (pos 3)
   "^.*$x"
    ...^
-2.elisp:66:35: In call to sort-regexp-fields: Escaped non-special character `%' (pos 0)
+2.elisp:70:35: In call to sort-regexp-fields: Escaped non-special character `%' (pos 0)
   "\\%"
    ^

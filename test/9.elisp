@@ -17,12 +17,28 @@
         (page-delimiter "[jj]"))
     (let* ((comment-start-skip "[kk]")
            (comment-end-skip "[ll]"))
-      (asdf))))
+      (asdf)))
+
+  (setq treesit-sentence-type-regexp "+0")
+  (setq treesit-sexp-type-regexp "+1"))
+
+(defvar bad-imenu
+  '(("*less*" "" 0)
+    (nil "+b+" 0)))
+
+(defvar bad-treesit-imenu
+  '((nil "node" nil nil)
+    ("+++" "+c+" nil nil)))
 
 (defun test-9-ge ()
   (setq-local imenu-generic-expression
               '((nil "oh" 0)
-                ("*more*" "+a+" 0))))
+                ("*more*" "+a+" 0)))
+  (setq imenu-generic-expression bad-imenu)
+  (setq-local treesit-simple-imenu-settings bad-treesit-imenu)
+  (set (make-local-variable 'treesit-simple-imenu-settings)
+       '((nil "type" nil nil)
+         ("+more+" "+d+" nil nil))))
 
 (defun test-9-fl-kw ()
   (setq-local font-lock-keywords '(("[mm]" . tag)))
@@ -40,3 +56,15 @@
         '((my-fl-keyw-1
            my-font-lock-keywords-2)
           moo mooo)))
+
+(defun test-9-ts-indent ()
+  (setq treesit-simple-indent-rules
+        '((a ((match "+e+" "+f+" "+g+") a 0)
+             ((n-p-gp "+h+" "+i+" "+j+") a 0))
+          (b ((parent-is "+k+") b 0)
+             ((node-is "+l+") b 0)
+             ((field-is "+m+") b 0)))))
+
+(defun test-9-ts-defun ()
+  (setq treesit-defun-type-regexp "+n+")
+  (setq treesit-defun-type-regexp (cons "+o+" #'ignore)))

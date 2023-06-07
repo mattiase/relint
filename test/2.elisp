@@ -32,7 +32,11 @@
   (directory-files-recursively s "+3")
   (delete-matching-lines "+4")
   (delete-non-matching-lines "+5")
-  (count-matches "+6"))
+  (count-matches "+6")
+  (treesit-induce-sparse-tree n "+7")
+  (treesit-search-forward n "+8")
+  (treesit-search-forward-goto n "+9")
+  (treesit-search-subtree n "+10"))
 
 ;; Test argument names as means of detecting regexps.
 (defun f2 (x1 my-regexp x2 my-regex x3 my-re x4 my-pattern x5 re)

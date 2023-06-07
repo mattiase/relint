@@ -1,0 +1,42 @@
+;;; Relint test file 14          -*- emacs-lisp -*-
+
+;; Test tree-sitter queries.
+
+(defun test-treesit-font-lock ()
+  (treesit-font-lock-rules
+   :language "+a+"
+   :feature "+b+"
+   '("+c+" ("+d+") (:match "+e+"))
+
+   :language nil
+   :feature nil
+   `(((f @f) (:match "+f+" @f))
+     [((g) @g (:match ,(string ?+ ?g ?+) @g))]
+     ((h @h) (:match "h+" @h)))))
+
+(defun test-treesit-ranges ()
+  (treesit-range-rules
+   :embed "+i+"
+   :host "+j+"
+   '(["+k+"]
+     (("+l+") (:match @l "+m+"))
+     (:match "+n+"))
+
+   #'ignore
+
+   :embed nil
+   :host nil
+   `(((o field: _ @o) (:match "+o+" @o))
+     [((p) @p (:match ,(string ?+ ?p ?+) @p))]
+     ((q field: (_) @q) (:match "q+" @q)))))
+
+(treesit-query-expand '(((r) (:match "+r+" @r))))
+(treesit-query-compile
+ "+s+"
+ '(((s) @s (:match "s+" @s))
+   [[((t) @t (:match "+t+" @t))]]))
+
+(treesit-node-top-level nil '(((u) (:match "+u+" @u))))
+(treesit-query-capture nil '(((v) (:match "+v+" @v))))
+(treesit-query-range nil '(((w) (:match "+w+" @w))))
+(treesit-query-string nil '(((x) (:match "+x+" @x))))

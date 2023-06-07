@@ -1,0 +1,30 @@
+14.elisp:13:4: In call to treesit-font-lock-rules: Unescaped literal `+' (pos 0)
+  "+f+"
+   ^
+14.elisp:13:4: In call to treesit-font-lock-rules: Unescaped literal `+' (pos 0)
+  "+g+"
+   ^
+14.elisp:29:4: In call to treesit-range-rules: Unescaped literal `+' (pos 0)
+  "+o+"
+   ^
+14.elisp:29:4: In call to treesit-range-rules: Unescaped literal `+' (pos 0)
+  "+p+"
+   ^
+14.elisp:33:23: In call to treesit-query-expand: Unescaped literal `+' (pos 0)
+  "+r+"
+   ^
+14.elisp:36:2: In call to treesit-query-compile: Unescaped literal `+' (pos 0)
+  "+t+"
+   ^
+14.elisp:39:29: In call to treesit-node-top-level: Unescaped literal `+' (pos 0)
+  "+u+"
+   ^
+14.elisp:40:28: In call to treesit-query-capture: Unescaped literal `+' (pos 0)
+  "+v+"
+   ^
+14.elisp:41:26: In call to treesit-query-range: Unescaped literal `+' (pos 0)
+  "+w+"
+   ^
+14.elisp:42:27: In call to treesit-query-string: Unescaped literal `+' (pos 0)
+  "+x+"
+   ^

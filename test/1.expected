@@ -177,3 +177,9 @@
 1.elisp:114:8: In call to syntax-propertize-precompile-rules: Unescaped literal `^' (pos 2)
   "^4^"
    ..^
+1.elisp:116:34: In my-ts--font-lock-rules: Duplicated `5' inside character alternative (pos 2)
+  "[55]"
+   ..^
+1.elisp:117:38: In my-ts-mode-font-lock-rules: Duplicated `6' inside character alternative (pos 2)
+  "[66]"
+   ..^
