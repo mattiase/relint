@@ -175,15 +175,17 @@ and a path."
             (emacs-lisp-mode)
             (insert "(print \"c \\xf \\xg \\x d\")\n"))
           (let* ((diags (relint-buffer buf))
-                 (err (assoc "(error \"Invalid escape character syntax\")"
-                             diags)))
+                 (err (condition-case err
+                          (read-from-string "?\\x")
+                        (error (prin1-to-string err)))))
             (should (equal
-                     (remove err diags)
-                   '(("Character escape `\\x' not followed by hex digit"
-                      15 nil nil nil warning)
-                     ("Character escape `\\x' not followed by hex digit"
-                      19 nil nil nil warning)
-                     )))))
+                     ;; Ignore 'invalid escape char syntax' error.
+                     (remove (assoc err diags) diags)
+                     '(("Character escape `\\x' not followed by hex digit"
+                        15 nil nil nil warning)
+                       ("Character escape `\\x' not followed by hex digit"
+                        19 nil nil nil warning)
+                       )))))
       (kill-buffer buf))))
 
 (provide 'relint-test)
