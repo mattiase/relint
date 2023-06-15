@@ -1232,22 +1232,34 @@ or in the car of an element."
         (relint--check-re-string (car elem) ident pos p)))))
    form path))
 
-(defun relint--check-treesit-query (form name pos path)
-  "Recursively check tree-sitter :match regexps in EXPR.
-FORM is assumed a non-literal in the source."
+(defun relint--check-treesit-query (form name pos path literal)
+  "Recursively check tree-sitter :match regexps in the value FORM.
+If LITERAL, then PATH is exact."
   (pcase form
-    (`(,_ . ,(or `((:match ,(and (pred stringp) re) . ,_))
-                 ;; Optional capture name.
-                 `(,(pred symbolp)
-                   (:match ,(and (pred stringp) re) . ,_))))
-     (relint--check-re-string re name pos path))
+    (`(,_ (:match ,(and (pred stringp) re) . ,_))
+     (relint--check-re-string re name
+                              pos (if literal (cons 1 (cons 1 path)) path)))
+    (`(,_ ,(pred symbolp) (:match ,(and (pred stringp) re) . ,_))
+     (relint--check-re-string re name
+                              pos (if literal (cons 1 (cons 2 path)) path)))
     ((pred consp)
-     (while (consp form)
-       (relint--check-treesit-query (car form) name pos path)
-       (setq form (cdr form))))
+     (let ((i 0))
+       (while (consp form)
+         (relint--check-treesit-query
+          (car form) name pos (if literal (cons i path) path) literal)
+         (setq form (cdr form))
+         (setq i (1+ i)))))
     ((pred vectorp)
      (dotimes (i (length form))
-       (relint--check-treesit-query (aref form i) name pos path)))))
+       (relint--check-treesit-query (aref form i) name pos path nil)))))
+
+(defun relint--check-treesit-queries (form name pos path)
+  "Evaluate and validate FORM as a list of tree-sitter queries."
+  (relint--eval-list-iter
+   (lambda (elem elem-path literal)
+     (relint--check-treesit-query
+      elem name pos elem-path literal))
+   form path))
 
 (defun relint--check-treesit-font-lock-rules (form name pos path)
   "Check tree-sitter font lock queries.
@@ -1255,12 +1267,12 @@ Evaluate and validate FORM as an arglist for
 `treesit-font-lock-rules'."
   (relint--eval-list-iter
    (let (skip-next)
-     (lambda (elem elem-path _literal)
+     (lambda (elem elem-path literal)
        (let ((skip skip-next))
          ;; Skip leading plists.
          (setq skip-next (keywordp elem))
          (unless (or skip skip-next)
-           (relint--check-treesit-query elem name pos elem-path)))))
+           (relint--check-treesit-query elem name pos elem-path literal)))))
    form path))
 
 (defun relint--check-treesit-indent-rule (form name pos path literal)
@@ -1287,8 +1299,7 @@ Evaluate and validate FORM as an arglist for
 
 (defun relint--check-treesit-indent-rules (form name pos path)
   "Check tree-sitter indentation rules.
-Evaluate and validate FORM as a value for
-`treesit-simple-indent-rules'."
+Evaluate and validate FORM as a value for `treesit-simple-indent-rules'."
   (relint--eval-list-iter
    (lambda (lang lang-path literal)
      (let ((lang-name (if (consp lang) (format "%s (%s)" name (car lang)) name))
@@ -2245,25 +2256,23 @@ directly."
           (while (consp items)
             (if (not (and (keywordp (car items))
                           (consp (cdr items))))
-                (relint--check-treesit-query (relint--eval-list (car items))
-                                             (format "call to %s" (car form))
-                                             pos (cons i path))
+                (relint--check-treesit-queries
+                 (car items) (format "call to %s" (car form))
+                 pos (cons i path))
               ;; Skip leading plists.
               (setq items (cdr items))
               (setq i (1+ i)))
             (setq items (cdr items))
             (setq i (1+ i)))))
        (`(treesit-query-expand ,query . ,_)
-        (relint--check-treesit-query (relint--eval-list query)
-                                     (format "call to %s" (car form))
-                                     pos (cons 1 path)))
+        (relint--check-treesit-queries query (format "call to %s" (car form))
+                                       pos (cons 1 path)))
        (`(,(or 'treesit-node-top-level 'treesit-query-capture
                'treesit-query-compile 'treesit-query-range
                'treesit-query-string)
           ,_ ,query . ,_)
-        (relint--check-treesit-query (relint--eval-list query)
-                                     (format "call to %s" (car form))
-                                     pos (cons 2 path)))
+        (relint--check-treesit-queries query (format "call to %s" (car form))
+                                       pos (cons 2 path)))
        (`(set (make-local-variable ',(and (pred symbolp) name)) ,expr)
         (cond ((memq name relint--known-regexp-variables)
                (relint--check-re expr name pos (cons 2 path)))
