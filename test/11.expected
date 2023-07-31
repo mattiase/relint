@@ -25,41 +25,43 @@
 11.elisp:15:20: Literal `-' not first or last (pos 3)
   "A-F-K-T"
    ...^
-11.elisp:16:19: In rx `regexp' form: Duplicated `1' inside character alternative (pos 2)
+11.elisp:16:4: In rx `regexp' form: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
-11.elisp:17:18: In rx `regex' form: Duplicated `2' inside character alternative (pos 2)
+11.elisp:16:4: In rx `regex' form: Duplicated `2' inside character alternative (pos 2)
   "[22]"
    ..^
-11.elisp:18:14: Duplicated character `3' (pos 1)
+11.elisp:16:4: Duplicated character `3' (pos 1)
   "33"
    .^
 11.elisp:20:29: Duplicated character `A' (pos 1)
   "AA"
    .^
-11.elisp:22:23: Duplicated character `B' (pos 1)
+11.elisp:21:19: Duplicated character `B' (pos 1)
   "BB"
    .^
-11.elisp:23:10: Duplicated character `C' (pos 1)
+11.elisp:23:5: Duplicated character `C' (pos 1)
   "CC"
    .^
-11.elisp:24:11: Duplicated character `D' (pos 1)
+11.elisp:24:5: Duplicated character `D' (pos 1)
   "DD"
    .^
-11.elisp:29:25: Character `\177' included in range `\000-\177' (pos 0)
+11.elisp:26:7: Duplicated character `z'
+11.elisp:26:7: Duplicated character `y'
+11.elisp:31:25: Character `\177' included in range `\000-\177' (pos 0)
   "\177"
    ^
-11.elisp:29:32: Character `\240' included in range `\200-\377' (pos 0)
+11.elisp:31:32: Character `\240' included in range `\200-\377' (pos 0)
   "\240"
    ^
-11.elisp:31:18: Character `m' included in range `a-z'
-11.elisp:32:19: Range `\000-\377' overlaps previous `a-f' (pos 0)
+11.elisp:33:18: Character `m' included in range `a-z'
+11.elisp:34:19: Range `\000-\377' overlaps previous `a-f' (pos 0)
   "\000-\377"
    ^
-11.elisp:33:25: Range `\000-\377' overlaps previous `\240-\277' (pos 0)
+11.elisp:35:25: Range `\000-\377' overlaps previous `\240-\277' (pos 0)
   "\000-\377"
    ^
-11.elisp:35:17: Duplicated rx form in or-pattern: ?A
-11.elisp:35:20: Duplicated rx form in or-pattern: "def"
-11.elisp:36:10: Duplicated rx form in or-pattern: "abc"
-11.elisp:36:16: Duplicated rx form in or-pattern: (= 3 ?*)
+11.elisp:37:17: Duplicated rx form in or-pattern: ?A
+11.elisp:37:20: Duplicated rx form in or-pattern: "def"
+11.elisp:38:10: Duplicated rx form in or-pattern: "abc"
+11.elisp:38:16: Duplicated rx form in or-pattern: (= 3 ?*)
