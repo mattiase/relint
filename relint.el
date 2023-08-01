@@ -3,7 +3,7 @@
 ;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.22
+;; Version: 1.23
 ;; Package-Requires: ((xr "1.24") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
@@ -29,6 +29,10 @@
 
 ;;; News:
 
+;; Version 1.23
+;; - New defcustom `relint-xr-checks' that enables optional xr checks.
+;; - Add regexp detection in uses of the treesit API.
+;; - Better backquote expansion inside rx forms.
 ;; Version 1.22
 ;; - String char escape check now detects \8, \9, and \x without hex digit
 ;; Version 1.21
