@@ -4,7 +4,7 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.22
-;; Package-Requires: ((xr "1.22") (emacs "26.1"))
+;; Package-Requires: ((xr "1.24") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -117,6 +117,15 @@
 (require 'compile)
 (require 'cl-lib)
 (require 'subr-x)
+
+(defcustom relint-xr-checks nil
+  "Extra checks to be performed by `xr' for each regexp.
+This is the CHECKS argument passed to `xr-lint' (q.v.).
+It is either nil, meaning the standard set of checks with minimal
+false positives, or `all', enabling all checks."
+  :group 'relint
+  :type '(choice (const :tag "Standard checks only" nil)
+                 (const :tag "All checks" all)))
 
 (defun relint--get-error-buffer ()
   "Buffer to which errors are printed, or nil if noninteractive."
@@ -351,10 +360,12 @@ or nil if no position could be determined."
   (relint--check-string skip-set-string #'xr-skip-set-lint name pos path))
 
 (defun relint--check-re-string (re name pos path)
-  (relint--check-string re #'xr-lint name pos path))
+  (relint--check-string re (lambda (x) (xr-lint x nil relint-xr-checks))
+                        name pos path))
   
 (defun relint--check-file-re-string (re name pos path)
-  (relint--check-string re (lambda (x) (xr-lint x 'file)) name pos path))
+  (relint--check-string re (lambda (x) (xr-lint x 'file relint-xr-checks))
+                        name pos path))
   
 (defun relint--check-syntax-string (syntax name pos path)
   (relint--check-string syntax #'relint--syntax-string-lint name pos path))

@@ -188,4 +188,21 @@ and a path."
                        )))))
       (kill-buffer buf))))
 
+(ert-deftest relint-xr-checks ()
+  ;; Test optional checks enabled with `relint-xr-checks'.
+  (dolist (checks '(nil all))
+    (let* ((relint-xr-checks checks)
+           (warnings
+            (with-temp-buffer
+              (emacs-lisp-mode)
+              (insert (format "(looking-at %S)\n"
+                              "\\(:?xy\\)+"))
+              (let ((text-quoting-style 'grave))
+                (relint-buffer (current-buffer)))))
+           (msg
+            "In call to looking-at: Possibly mistyped `:?' at start of group"))
+      (should (equal warnings
+                     (and checks
+                          `((,msg 13 17 "\\(:?xy\\)+" 2 warning))))))))
+
 (provide 'relint-test)
