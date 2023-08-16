@@ -347,17 +347,27 @@ or nil if no position could be determined."
          (length (relint--escape-string (substring string 0 pos) t))))
     (concat (make-string quoted-pos ?.) "^")))
 
+(defun relint--expand-name (name)
+  (pcase-exhaustive name
+    (`(call-to . ,x) (format "call to %s" x))
+    (`(parameter . ,x) (format "%s parameter" x))
+    (`(at ,x ,y) (format "%s (%s)" x y))
+    ((pred stringp) name)
+    ((pred symbolp) (symbol-name name))))
+
 (defun relint--check-string (string checker name pos path)
   (let ((complaints
          (condition-case err
              (funcall checker string)
            (error
             (relint--err pos path
-                         (format "In %s: %s" name (cadr err))
+                         (format "In %s: %s"
+                                 (relint--expand-name name) (cadr err))
                          string nil)
             nil))))
     (dolist (c complaints)
-      (relint--warn pos path (format "In %s: %s" name (cdr c))
+      (relint--warn pos path
+                    (format "In %s: %s" (relint--expand-name name) (cdr c))
                     string (car c)))))
 
 (defun relint--check-skip-set (skip-set-string name pos path)
@@ -1240,7 +1250,7 @@ or in the car of an element."
      ((and (consp elem)
            (stringp (car elem)))
       (let* ((tag (and (symbolp (cdr elem)) (cdr elem)))
-             (ident (if tag (format "%s (%s)" name tag) name))
+             (ident (if tag (list 'at name tag) name))
              (p (if literal
                     (cons 0 elem-path)
                   elem-path)))
@@ -1317,7 +1327,7 @@ Evaluate and validate FORM as an arglist for
 Evaluate and validate FORM as a value for `treesit-simple-indent-rules'."
   (relint--eval-list-iter
    (lambda (lang lang-path literal)
-     (let ((lang-name (if (consp lang) (format "%s (%s)" name (car lang)) name))
+     (let ((lang-name (if (consp lang) (list 'at name (car lang)) name))
            (rules (cdr-safe lang))
            (i 1))
        (while (consp rules)
@@ -1345,7 +1355,7 @@ Evaluate and validate FORM as a value for `treesit-simple-indent-rules'."
      (when (cadr elem)
        (relint--check-re-string
         (cadr elem)
-        (format "%s (%s)" name (car elem))
+        (list 'at name (car elem))
         pos (if literal (cons 1 elem-path) elem-path))))
    form path))
 
@@ -1384,7 +1394,7 @@ Evaluate and validate FORM as a value for `treesit-simple-indent-rules'."
            (when (and (consp clause) (eq (car clause) 'regexp)
                       (stringp (cdr clause)))
              (relint--check-re-string 
-              (cdr clause) (format "%s (%s)" name rule-name) pos
+              (cdr clause) (list 'at name rule-name) pos
               (if literal (cons 1 (cons i rule-path)) rule-path)))
            (setq i (1+ i))))))
    form path))
@@ -2130,13 +2140,13 @@ directly."
           ,re-arg . ,_)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
-          (relint--check-re re-arg (format "call to %s" (car form))
+          (relint--check-re re-arg (cons 'call-to (car form))
                             pos (cons 1 path))))
        (`(load-history-filename-element ,re-arg)
-        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+        (relint--check-file-name-re re-arg (cons 'call-to (car form))
                                     pos (cons 1 path)))
        (`(directory-files-recursively ,_ ,re-arg . ,_)
-        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+        (relint--check-file-name-re re-arg (cons 'call-to (car form))
                                     pos (cons 2 path)))
        (`(,(or 'split-string 'split-string-and-unquote
                'string-trim-left 'string-trim-right 'string-trim
@@ -2145,7 +2155,7 @@ directly."
           ,_ ,re-arg . ,rest)
         (unless (and (symbolp re-arg)
                      (memq re-arg relint--checked-variables))
-          (relint--check-re re-arg (format "call to %s" (car form))
+          (relint--check-re re-arg (cons 'call-to (car form))
                             pos (cons 2 path)))
         ;; string-trim has another regexp argument (trim-right, arg 3)
         (when (and (eq (car form) 'string-trim)
@@ -2153,7 +2163,7 @@ directly."
           (let ((right (car rest)))
             (unless (and (symbolp right)
                          (memq right relint--checked-variables))
-              (relint--check-re right (format "call to %s" (car form))
+              (relint--check-re right (cons 'call-to (car form))
                                 pos (cons 3 path)))))
         ;; split-string has another regexp argument (trim, arg 4)
         (when (and (eq (car form) 'split-string)
@@ -2161,14 +2171,14 @@ directly."
           (let ((trim (cadr rest)))
             (unless (and (symbolp trim)
                          (memq trim relint--checked-variables))
-              (relint--check-re trim (format "call to %s" (car form))
+              (relint--check-re trim (cons 'call-to (car form))
                                 pos (cons 4 path))))))
        (`(,(or 'directory-files 'directory-files-and-attributes)
           ,_ ,_ ,re-arg . ,_)
-        (relint--check-file-name-re re-arg (format "call to %s" (car form))
+        (relint--check-file-name-re re-arg (cons 'call-to (car form))
                                     pos (cons 3 path)))
        (`(sort-regexp-fields ,_ ,record-arg ,key-arg . ,_)
-        (let ((name (format "call to %s" (car form))))
+        (let ((name (cons 'call-to (car form))))
           (relint--check-re record-arg name pos (cons 2 path))
           (let ((key-re (relint--eval-or-nil key-arg)))
             (when (and (stringp key-re) (not (equal key-re "\\&")))
@@ -2177,7 +2187,7 @@ directly."
           ,skip-arg . ,_)
         (let ((str (relint--get-string skip-arg)))
           (when str
-            (relint--check-skip-set str (format "call to %s" (car form))
+            (relint--check-skip-set str (cons 'call-to (car form))
                                     pos (cons 1 path))))
         (relint--check-non-regexp-provenance
          (car form) skip-arg pos (cons 1 path))
@@ -2185,7 +2195,7 @@ directly."
        (`(,(or 'skip-syntax-forward 'skip-syntax-backward) ,arg . ,_)
         (let ((str (relint--get-string arg)))
           (when str
-            (relint--check-syntax-string str (format "call to %s" (car form))
+            (relint--check-syntax-string str (cons 'call-to (car form))
                                          pos (cons 1 path))))
         (relint--check-non-regexp-provenance (car form) arg pos (cons 1 path))
         )
@@ -2307,7 +2317,7 @@ directly."
             (if (not (and (keywordp (car items))
                           (consp (cdr items))))
                 (relint--check-treesit-queries
-                 (car items) (format "call to %s" (car form))
+                 (car items) (cons 'call-to (car form))
                  pos (cons i path))
               ;; Skip leading plists.
               (setq items (cdr items))
@@ -2315,13 +2325,13 @@ directly."
             (setq items (cdr items))
             (setq i (1+ i)))))
        (`(treesit-query-expand ,query . ,_)
-        (relint--check-treesit-queries query (format "call to %s" (car form))
+        (relint--check-treesit-queries query (cons 'call-to (car form))
                                        pos (cons 1 path)))
        (`(,(or 'treesit-node-top-level 'treesit-query-capture
                'treesit-query-compile 'treesit-query-range
                'treesit-query-string)
           ,_ ,query . ,_)
-        (relint--check-treesit-queries query (format "call to %s" (car form))
+        (relint--check-treesit-queries query (cons 'call-to (car form))
                                        pos (cons 2 path)))
        (`(set (make-local-variable ',(and (pred symbolp) name)) ,expr)
         (cond ((memq name relint--known-regexp-variables)
@@ -2340,12 +2350,11 @@ directly."
           (relint--check-list auto-mode-list origin pos (cons 5 path) t)))
        (`(,(or 'syntax-propertize-rules 'syntax-propertize-precompile-rules)
           . ,rules)
-        (let ((index 1))
+        (let ((name (cons 'call-to (car form)))
+              (index 1))
           (dolist (item rules)
             (when (consp item)
-              (relint--check-re (car item)
-                                (format "call to %s" (car form))
-                                pos (cons 0 (cons index path))))
+              (relint--check-re (car item) name pos (cons 0 (cons index path))))
             (setq index (1+ index)))))
        (`(add-to-list 'auto-mode-alist ,elem . ,_)
         (relint--check-auto-mode-alist-expr
@@ -2355,7 +2364,7 @@ directly."
          (if (eq (relint--eval-or-nil type) 'file)
              #'relint--check-file-name-re
            #'relint--check-re)
-         re-arg (format "call to %s" (car form)) pos (cons 2 path)))
+         re-arg (cons 'call-to (car form)) pos (cons 2 path)))
        (`(,name . ,args)
         (let ((alias (assq name relint--alias-defs)))
           (when alias
@@ -2374,7 +2383,7 @@ directly."
                  (unless (and (symbolp (car args))
                               (memq (car args) relint--checked-variables))
                    (relint--check-re (car args)
-                                     (format "call to %s" (car form))
+                                     (cons 'call-to (car form))
                                      pos (cons (1+ index) path)))
                  (setq indices (cdr indices)))
                (setq args (cdr args))
@@ -2394,7 +2403,7 @@ directly."
           ((and (memq (car form) '(:regexp :regex))
                 (consp (cdr form)))
            (relint--check-re (cadr form)
-                             (format "%s parameter" (car form))
+                             (cons 'parameter (car form))
                              pos (cons (1+ index) path))))
          (setq form (cdr form))
          (setq index (1+ index)))))))
