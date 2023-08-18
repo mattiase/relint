@@ -2369,25 +2369,23 @@ directly."
         (let ((alias (assq name relint--alias-defs)))
           (when alias
             (relint--check-form-recursively-2
-             (cons (cdr alias) args) mutables pos path))))
-       )
+             (cons (cdr alias) args) mutables pos path)))
 
-     ;; Check calls to remembered functions with regexp arguments.
-     (when (consp form)
-       (let ((indices (cdr (assq (car form) relint--regexp-functions))))
-         (when indices
-           (let ((index 0)
-                 (args (cdr form)))
-             (while (and indices (consp args))
-               (when (= index (car indices))
-                 (unless (and (symbolp (car args))
-                              (memq (car args) relint--checked-variables))
-                   (relint--check-re (car args)
-                                     (cons 'call-to (car form))
-                                     pos (cons (1+ index) path)))
-                 (setq indices (cdr indices)))
-               (setq args (cdr args))
-               (setq index (1+ index)))))))
+        ;; Check calls to remembered functions with regexp arguments.
+        (let ((indices (cdr (assq name relint--regexp-functions))))
+          (when indices
+            (let ((index 0))
+              (while (and indices (consp args))
+                (when (= index (car indices))
+                  (unless (and (symbolp (car args))
+                               (memq (car args) relint--checked-variables))
+                    (relint--check-re (car args)
+                                      (cons 'call-to (car form))
+                                      pos (cons (1+ index) path)))
+                  (setq indices (cdr indices)))
+                (setq args (cdr args))
+                (setq index (1+ index)))))))
+       )
 
      ;; FIXME: All function applications, and some macros / special forms
      ;; (prog{1,2,n}, save-excursion...) could be scanned with full
