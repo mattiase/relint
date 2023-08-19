@@ -115,3 +115,12 @@
 
 (defvar my-ts--font-lock-rules '(((a) (:match "[55]" @a))))
 (defvar my-ts-mode-font-lock-rules '(((b) (:match "[66]" @b))))
+
+(defun my-bug ()
+  `(
+    (,(rx (in "+-/"))   ; <-
+     (1 font-lock-keyword-face) (2 font-lock-type-face))
+
+    (,(rx (in "+-/"))   ; <-
+     . font-lock-constant-face)
+    ))
