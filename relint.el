@@ -1946,8 +1946,9 @@ return (NAME); on syntax error, return nil."
         ((and (consp binding)
               (symbolp (car binding))
               (consp (cdr binding)))
-         (relint--check-form-recursively-2
-          (cadr binding) mutables pos (cons 1 path))
+         (when (consp (cadr binding))
+           (relint--check-form-recursively-2
+            (cadr binding) mutables pos (cons 1 path)))
          (let ((val (catch 'relint-eval
                       (list (relint--eval (cadr binding))))))
            (when (and (consp val)
@@ -1980,236 +1981,281 @@ return (NAME); on syntax error, return nil."
         (setq index (1+ index))))))
 
 (defun relint--check-form-recursively-2 (form mutables pos path)
-"Check FORM (at POS, PATH) recursively.
+  "Check FORM (at POS, PATH) recursively.
 MUTABLES is a list of lexical variables in a scope which FORM may mutate
 directly."
-  (pcase form
-    (`(let ,(and (pred listp) bindings) . ,body)
-     (let* ((i 0)
-            (bindings-path (cons 1 path))
-            (new-bindings nil)
-            (body-mutables mutables))
-       (while (consp bindings)
-         (let ((b (relint--check-and-eval-let-binding
-                   (car bindings) mutables pos (cons i bindings-path))))
-           (when b
-             (push b new-bindings)
-             (push (car b) body-mutables))
-           (setq i (1+ i))
-           (setq bindings (cdr bindings))))
-       (let ((relint--locals
-              (append new-bindings relint--locals))
-             (index 2))
-         (while (consp body)
-           (when (consp (car body))
-             (relint--check-form-recursively-2
-              (car body) body-mutables pos (cons index path)))
-           (setq body (cdr body))
-           (setq index (1+ index))))))
-    (`(let* ,(and (pred listp) bindings) . ,body)
-     (relint--check-let* bindings body mutables pos path 0))
-    (`(,(or 'setq 'setq-local) . ,args)
-     ;; Only mutate lexical variables in the mutation list, which means
-     ;; that this form will be executed exactly once during their remaining
-     ;; lifetime. Other lexical vars will just be invalidated since we
-     ;; don't know anything about the control flow.
-     (let ((i 2))
-       (while (and (consp args) (consp (cdr args)) (symbolp (car args)))
-         (let ((name (car args))
-               (expr (cadr args)))
-           (relint--check-form-recursively-2
-            expr mutables pos (cons i path))
-           (cond
-            ((memq name relint--known-regexp-variables)
-             (relint--check-re expr name pos (cons i path)))
-            ((string-match-p (rx "font-lock-keywords") (symbol-name name))
-             (relint--check-font-lock-keywords expr name pos (cons i path)))
-            ((eq name 'font-lock-defaults)
-             (relint--check-font-lock-defaults expr name pos (cons i path)))
-            ((memq name relint--known-imenu-variables)
-             (relint--check-imenu-generic-expression
-              expr name pos (cons i path)))
-            ((eq name 'auto-mode-alist)
-             (pcase expr
-               (`(cons ,item auto-mode-alist)
-                (relint--check-auto-mode-alist-expr
-                 item name pos (cons 1 (cons i path))))
-               (`(append ,items auto-mode-alist)
-                (relint--check-auto-mode-alist
-                 items name pos (cons 1 (cons i path))))))
-            ((eq name 'treesit-simple-indent-rules)
-             (relint--check-treesit-indent-rules expr name pos (cons i path)))
-            ((eq name 'treesit-defun-type-regexp)
-             (let* ((val (relint--eval-or-nil expr))
-                    (re (or (car-safe val) val)))
-               (when (stringp re)
-                 (relint--check-re-string re name pos (cons i path)))))
-            (t
-             ;; Invalidate the variable if it was local; otherwise, ignore.
-             (let ((local (assq name relint--locals)))
-               (when local
-                 (setcdr local
-                         (and (memq name mutables)
-                              (let ((val (catch 'relint-eval
-                                           (list (relint--eval expr)))))
-                                (and (not (eq val 'no-value))
-                                     val)))))))))
-         (setq args (cddr args))
-         (setq i (+ i 2)))))
-    (`(push ,expr ,(and (pred symbolp) name))
-     ;; Treat (push EXPR NAME) as (setq NAME (cons EXPR NAME)).
-     (relint--check-form-recursively-2 expr mutables pos (cons 1 path))
-     (when (eq name 'auto-mode-alist)
-       (relint--check-auto-mode-alist-expr expr name pos (cons 1 path)))
-     (let ((local (assq name relint--locals)))
-       (when local
-         (setcdr local
-                 (let ((old-val (cdr local)))
-                   (and old-val
-                        (memq name mutables)
-                        (let ((val (catch 'relint-eval
-                                     (list (cons (relint--eval expr)
-                                                 (car old-val))))))
-                          (and (consp val)
-                               val))))))))
-    (`(pop ,(and (pred symbolp) name))
-     ;; Treat (pop NAME) as (setq NAME (cdr NAME)).
-     (let ((local (assq name relint--locals)))
-       (when (and local (memq name mutables))
-         (let ((old-val (cadr local)))
-           (when (consp old-val)
-             (setcdr local (list (cdr old-val))))))))
-    (`(,(or 'if 'and 'or 'when 'unless) ,(and (pred consp) arg1) . ,rest)
-     ;; Only first arg is executed unconditionally.
-     ;; FIXME: A conditional in the tail position of its environment binding
-     ;; has the exactly-once property wrt its body; use it!
-     (relint--check-form-recursively-2 arg1 mutables pos (cons 1 path))
-     (let ((i 2))
-       (while (consp rest)
-         (when (consp (car rest))
-           (relint--check-form-recursively-2
-            (car rest) nil pos (cons i path)))
-         (setq rest (cdr rest))
-         (setq i (1+ i)))))
-    (`(,(or 'defun 'defsubst 'defmacro) ,_ ,(and (pred listp) arglist) . ,body)
-     ;; Create local bindings for formal arguments (with unknown values).
-     (let* ((argnames (mapcan (lambda (arg)
-                                (and (symbolp arg)
-                                     (not (memq arg '(&optional &rest)))
-                                     (list arg)))
-                              arglist))
-            (relint--locals (append (mapcar #'list argnames) relint--locals)))
-       (let ((i 3))
-         (while (consp body)
-           (when (consp (car body))
-             (relint--check-form-recursively-2
-              (car body) argnames pos (cons i path)))
-           (setq body (cdr body))
-           (setq i (1+ i))))))
-    (`(lambda ,(and (pred listp) arglist) . ,body)
-     ;; Create local bindings for formal arguments (with unknown values).
-     (let* ((argnames (mapcan (lambda (arg)
-                                (and (symbolp arg)
-                                     (not (memq arg '(&optional &rest)))
-                                     (list arg)))
-                              arglist))
-            (relint--locals (append (mapcar #'list argnames) relint--locals)))
+  (let ((head (car form))
+        (args (cdr form)))
+    (cond
+     ((not (proper-list-p args))
+      ;; Dotted list: just recurse.
+      (let ((index 0))
+        (while (consp form)
+          (when (consp (car form))
+            (relint--check-form-recursively-2
+             (car form) nil pos (cons index path)))
+          (setq form (cdr form))
+          (setq index (1+ index)))))
+     ;; now we can assume that `args' is a proper list
+     ((eq head 'let)
+      (let ((bindings (car args)))
+        (when (listp bindings)
+          (let* ((body (cdr args))
+                 (i 0)
+                 (bindings-path (cons 1 path))
+                 (new-bindings nil)
+                 (body-mutables mutables))
+            (while (consp bindings)
+              (let ((b (relint--check-and-eval-let-binding
+                        (car bindings) mutables pos (cons i bindings-path))))
+                (when b
+                  (push b new-bindings)
+                  (push (car b) body-mutables))
+                (setq i (1+ i))
+                (setq bindings (cdr bindings))))
+            (let ((relint--locals
+                   (append new-bindings relint--locals))
+                  (index 2))
+              (while body
+                (when (consp (car body))
+                  (relint--check-form-recursively-2
+                   (car body) body-mutables pos (cons index path)))
+                (setq body (cdr body))
+                (setq index (1+ index))))))))
+     ((eq head 'let*)
+      (let ((bindings (car args)))
+        (when (listp bindings)
+          (relint--check-let* bindings (cdr args) mutables pos path 0))))
+     ((memq head '(setq setq-local))
+      ;; Only mutate lexical variables in the mutation list, which means
+      ;; that this form will be executed exactly once during their remaining
+      ;; lifetime. Other lexical vars will just be invalidated since we
+      ;; don't know anything about the control flow.
+      (let ((i 2))
+        (while (and (cdr args) (symbolp (car args)))
+          (let ((name (car args))
+                (expr (cadr args)))
+            (when (consp expr)
+              (relint--check-form-recursively-2
+               expr mutables pos (cons i path)))
+            (cond
+             ((memq name relint--known-regexp-variables)
+              (relint--check-re expr name pos (cons i path)))
+             ((string-match-p (rx "font-lock-keywords") (symbol-name name))
+              (relint--check-font-lock-keywords expr name pos (cons i path)))
+             ((eq name 'font-lock-defaults)
+              (relint--check-font-lock-defaults expr name pos (cons i path)))
+             ((memq name relint--known-imenu-variables)
+              (relint--check-imenu-generic-expression
+               expr name pos (cons i path)))
+             ((eq name 'auto-mode-alist)
+              (pcase expr
+                (`(cons ,item auto-mode-alist)
+                 (relint--check-auto-mode-alist-expr
+                  item name pos (cons 1 (cons i path))))
+                (`(append ,items auto-mode-alist)
+                 (relint--check-auto-mode-alist
+                  items name pos (cons 1 (cons i path))))))
+             ((eq name 'treesit-simple-indent-rules)
+              (relint--check-treesit-indent-rules expr name pos (cons i path)))
+             ((eq name 'treesit-defun-type-regexp)
+              (let* ((val (relint--eval-or-nil expr))
+                     (re (or (car-safe val) val)))
+                (when (stringp re)
+                  (relint--check-re-string re name pos (cons i path)))))
+             (t
+              ;; Invalidate the variable if it was local; otherwise, ignore.
+              (let ((local (assq name relint--locals)))
+                (when local
+                  (setcdr local
+                          (and (memq name mutables)
+                               (let ((val (catch 'relint-eval
+                                            (list (relint--eval expr)))))
+                                 (and (not (eq val 'no-value))
+                                      val)))))))))
+          (setq args (cddr args))
+          (setq i (+ i 2)))))
+    ((eq head 'push)
+     (let ((expr (nth 0 args))
+           (name (nth 1 args)))
+       (when (consp expr)
+         (relint--check-form-recursively-2 expr mutables pos (cons 1 path)))
+       (when (symbolp name)
+         ;; Treat (push EXPR NAME) as (setq NAME (cons EXPR NAME)).
+         (when (eq name 'auto-mode-alist)
+           (relint--check-auto-mode-alist-expr expr name pos (cons 1 path)))
+         (let ((local (assq name relint--locals)))
+           (when local
+             (setcdr local
+                     (let ((old-val (cdr local)))
+                       (and old-val
+                            (memq name mutables)
+                            (let ((val (catch 'relint-eval
+                                         (list (cons (relint--eval expr)
+                                                     (car old-val))))))
+                              (and (consp val)
+                                   val))))))))))
+    ((eq head 'pop)
+     (let ((name (car args)))
+       (when (symbolp name)
+         ;; Treat (pop NAME) as (setq NAME (cdr NAME)).
+         (let ((local (assq name relint--locals)))
+           (when (and local (memq name mutables))
+             (let ((old-val (cadr local)))
+               (when (consp old-val)
+                 (setcdr local (list (cdr old-val))))))))))
+    ((memq head '(if and or when unless))
+     (let ((arg1 (car args))
+           (rest (cdr args)))
+       (when (consp arg1)
+         ;; Only first arg is executed unconditionally.
+         ;; FIXME: A conditional in the tail position of its environment binding
+         ;; has the exactly-once property wrt its body; use it!
+         (relint--check-form-recursively-2 arg1 mutables pos (cons 1 path)))
        (let ((i 2))
-         (while (consp body)
-           (when (consp (car body))
+         (while rest
+           (when (consp (car rest))
              (relint--check-form-recursively-2
-              (car body) argnames pos (cons i path)))
-           (setq body (cdr body))
+              (car rest) nil pos (cons i path)))
+           (setq rest (cdr rest))
            (setq i (1+ i))))))
-    (_ 
-     (pcase form
-       (`(,(or 'looking-at 're-search-forward 're-search-backward
-               'string-match 'string-match-p 'looking-back 'looking-at-p
-               'replace-regexp-in-string 'replace-regexp
-               'query-replace-regexp
-               'posix-looking-at 'posix-search-backward 'posix-search-forward
-               'posix-string-match
-               'search-forward-regexp 'search-backward-regexp
-               'kill-matching-buffers
-               'keep-lines 'flush-lines 'how-many
-               'delete-matching-lines 'delete-non-matching-lines 'count-matches
-               ;; From s.el
-               's-matches? 's-matches-p 's-match-strings-all
-               's-matched-positions-all 's-match 's-slice-at
-               's-count-matches 's-count-matches-all 's-split 's-split-up-to)
-          ,re-arg . ,_)
-        (unless (and (symbolp re-arg)
-                     (memq re-arg relint--checked-variables))
-          (relint--check-re re-arg (cons 'call-to (car form))
-                            pos (cons 1 path))))
-       (`(load-history-filename-element ,re-arg)
-        (relint--check-file-name-re re-arg (cons 'call-to (car form))
-                                    pos (cons 1 path)))
-       (`(directory-files-recursively ,_ ,re-arg . ,_)
-        (relint--check-file-name-re re-arg (cons 'call-to (car form))
-                                    pos (cons 2 path)))
-       (`(,(or 'split-string 'split-string-and-unquote
-               'string-trim-left 'string-trim-right 'string-trim
-               'treesit-induce-sparse-tree 'treesit-search-forward
-               'treesit-search-forward-goto 'treesit-search-subtree)
-          ,_ ,re-arg . ,rest)
-        (unless (and (symbolp re-arg)
-                     (memq re-arg relint--checked-variables))
-          (relint--check-re re-arg (cons 'call-to (car form))
-                            pos (cons 2 path)))
-        ;; string-trim has another regexp argument (trim-right, arg 3)
-        (when (and (eq (car form) 'string-trim)
-                   (car rest))
-          (let ((right (car rest)))
-            (unless (and (symbolp right)
-                         (memq right relint--checked-variables))
-              (relint--check-re right (cons 'call-to (car form))
-                                pos (cons 3 path)))))
-        ;; split-string has another regexp argument (trim, arg 4)
-        (when (and (eq (car form) 'split-string)
-                   (cadr rest))
-          (let ((trim (cadr rest)))
-            (unless (and (symbolp trim)
-                         (memq trim relint--checked-variables))
-              (relint--check-re trim (cons 'call-to (car form))
-                                pos (cons 4 path))))))
-       (`(,(or 'directory-files 'directory-files-and-attributes)
-          ,_ ,_ ,re-arg . ,_)
-        (relint--check-file-name-re re-arg (cons 'call-to (car form))
-                                    pos (cons 3 path)))
-       (`(sort-regexp-fields ,_ ,record-arg ,key-arg . ,_)
-        (let ((name (cons 'call-to (car form))))
+    ((memq head '( defun defsubst defmacro))
+     (let ((arglist (cadr args))
+           (body (cddr args)))
+       (when (listp arglist)
+         ;; Create local bindings for formal arguments (with unknown values).
+         (let* ((argnames (mapcan (lambda (arg)
+                                    (and (symbolp arg)
+                                         (not (memq arg '(&optional &rest)))
+                                         (list arg)))
+                                  arglist))
+                (relint--locals (append (mapcar #'list argnames)
+                                        relint--locals)))
+           (let ((i 3))
+             (while body
+               (when (consp (car body))
+                 (relint--check-form-recursively-2
+                  (car body) argnames pos (cons i path)))
+               (setq body (cdr body))
+               (setq i (1+ i))))))))
+    ((eq head 'lambda)
+     (let ((arglist (car args))
+           (body (cdr args)))
+       (when (listp arglist)
+         ;; Create local bindings for formal arguments (with unknown values).
+         (let* ((argnames (mapcan (lambda (arg)
+                                    (and (symbolp arg)
+                                         (not (memq arg '(&optional &rest)))
+                                         (list arg)))
+                                  arglist))
+                (relint--locals (append (mapcar #'list argnames)
+                                        relint--locals)))
+           (let ((i 2))
+             (while body
+               (when (consp (car body))
+                 (relint--check-form-recursively-2
+                  (car body) argnames pos (cons i path)))
+               (setq body (cdr body))
+               (setq i (1+ i))))))))
+    (t
+     (cond
+      ((memq head '( looking-at re-search-forward re-search-backward
+                     string-match string-match-p looking-back looking-at-p
+                     replace-regexp-in-string replace-regexp
+                     query-replace-regexp
+                     posix-looking-at
+                     posix-search-backward posix-search-forward
+                     posix-string-match
+                     search-forward-regexp search-backward-regexp
+                     kill-matching-buffers
+                     keep-lines flush-lines how-many
+                     delete-matching-lines delete-non-matching-lines
+                     count-matches
+                     ;; From s.el
+                     s-matches? s-matches-p s-match-strings-all
+                     s-matched-positions-all s-match s-slice-at
+                     s-count-matches s-count-matches-all s-split s-split-up-to))
+       (let ((re-arg (car args)))
+         (unless (and (symbolp re-arg)
+                      (memq re-arg relint--checked-variables))
+           (relint--check-re re-arg (cons 'call-to (car form))
+                             pos (cons 1 path)))))
+       ((eq head 'load-history-filename-element)
+        (let ((re-arg (car args)))
+          (relint--check-file-name-re re-arg (cons 'call-to (car form))
+                                      pos (cons 1 path))))
+       ((eq head 'directory-files-recursively)
+        (let ((re-arg (cadr args)))
+          (relint--check-file-name-re re-arg (cons 'call-to (car form))
+                                      pos (cons 2 path))))
+       ((memq head '( split-string split-string-and-unquote
+                      string-trim-left string-trim-right string-trim
+                      treesit-induce-sparse-tree treesit-search-forward
+                      treesit-search-forward-goto treesit-search-subtree))
+        (let ((re-arg (cadr args))
+              (rest (cddr args)))
+          (unless (and (symbolp re-arg)
+                       (memq re-arg relint--checked-variables))
+            (relint--check-re re-arg (cons 'call-to (car form))
+                              pos (cons 2 path)))
+          ;; string-trim has another regexp argument (trim-right, arg 3)
+          (when (and (eq (car form) 'string-trim)
+                     (car rest))
+            (let ((right (car rest)))
+              (unless (and (symbolp right)
+                           (memq right relint--checked-variables))
+                (relint--check-re right (cons 'call-to (car form))
+                                  pos (cons 3 path)))))
+          ;; split-string has another regexp argument (trim, arg 4)
+          (when (and (eq (car form) 'split-string)
+                     (cadr rest))
+            (let ((trim (cadr rest)))
+              (unless (and (symbolp trim)
+                           (memq trim relint--checked-variables))
+                (relint--check-re trim (cons 'call-to (car form))
+                                  pos (cons 4 path)))))))
+       ((memq head '(directory-files directory-files-and-attributes))
+        (let ((re-arg (caddr args)))
+          (relint--check-file-name-re re-arg (cons 'call-to (car form))
+                                      pos (cons 3 path))))
+       ((eq head 'sort-regexp-fields)
+        (let ((record-arg (cadr args))
+              (key-arg (caddr args))
+              (name (cons 'call-to (car form))))
           (relint--check-re record-arg name pos (cons 2 path))
           (let ((key-re (relint--eval-or-nil key-arg)))
             (when (and (stringp key-re) (not (equal key-re "\\&")))
               (relint--check-re key-re name pos (cons 3 path))))))
-       (`(,(or 'skip-chars-forward 'skip-chars-backward)
-          ,skip-arg . ,_)
-        (let ((str (relint--get-string skip-arg)))
+       ((memq head '(skip-chars-forward skip-chars-backward))
+        (let* ((skip-arg (car args))
+               (str (relint--get-string skip-arg)))
           (when str
             (relint--check-skip-set str (cons 'call-to (car form))
-                                    pos (cons 1 path))))
-        (relint--check-non-regexp-provenance
-         (car form) skip-arg pos (cons 1 path))
-        )
-       (`(,(or 'skip-syntax-forward 'skip-syntax-backward) ,arg . ,_)
-        (let ((str (relint--get-string arg)))
+                                    pos (cons 1 path)))
+          (relint--check-non-regexp-provenance
+           (car form) skip-arg pos (cons 1 path))))
+       ((memq head '(skip-syntax-forward skip-syntax-backward))
+        (let* ((arg (car args))
+               (str (relint--get-string arg)))
           (when str
             (relint--check-syntax-string str (cons 'call-to (car form))
-                                         pos (cons 1 path))))
-        (relint--check-non-regexp-provenance (car form) arg pos (cons 1 path))
-        )
-       (`(concat . ,args)
+                                         pos (cons 1 path)))
+          (relint--check-non-regexp-provenance (car form) arg
+                                               pos (cons 1 path))))
+       ((eq head 'concat)
         (relint--check-concat-mixup args pos path))
-       (`(format ,template-arg . ,args)
-        (let ((template (relint--get-string template-arg)))
+       ((eq head 'format)
+        (let* ((template-arg (car args))
+               (template (relint--get-string template-arg)))
           (when template
-            (relint--check-format-mixup template args pos path))))
-       (`(,(or 'defvar 'defconst 'defcustom)
-          ,name ,re-arg . ,rest)
-        (let ((type (and (eq (car form) 'defcustom)
-                         (relint--eval-or-nil (plist-get (cdr rest) :type)))))
-          (when (symbolp name)
+            (relint--check-format-mixup template (cdr args) pos path))))
+       ((memq head '( defvar defconst defcustom))
+        (let* ((name (car args))
+               (re-arg (cadr args))
+               (rest (cddr args))
+               (type (and (eq (car form) 'defcustom)
+                          (relint--eval-or-nil (plist-get (cdr rest) :type)))))
+          (when (and (symbolp name) (cdr args))
             (cond
              ((or (relint--defcustom-type-regexp-p type)
                   (string-match-p (rx (or "-regexp" "-regex" "-re" "-pattern")
@@ -2304,18 +2350,22 @@ directly."
                                     (cons 'val val))))
                         (list 'expr re-arg))))
               (push (cons name new) relint--variables)))))
-       (`(rx . ,_)
+       ((eq head 'rx)
         (relint--check-rx form pos path t))
-       (`(rx-to-string (,(or 'quote '\`) ,arg) . ,_)
-        (relint--check-rx arg pos (cons 1 (cons 1 path)) t))
-       (`(font-lock-add-keywords ,_ ,keywords . ,_)
-        (relint--check-font-lock-keywords
-         keywords (car form) pos (cons 2 path)))
-       (`(,(or 'treesit-font-lock-rules 'treesit-range-rules) . ,items)
-        (let ((i 1))
-          (while (consp items)
+       ((eq head 'rx-to-string)
+        (when (memq (car-safe (car-safe args)) '(quote \`))
+          (let ((arg (cadar args)))
+            (relint--check-rx arg pos (cons 1 (cons 1 path)) t))))
+       ((eq head 'font-lock-add-keywords)
+        (let ((keywords (cadr args)))
+          (relint--check-font-lock-keywords
+           keywords (car form) pos (cons 2 path))))
+       ((memq head '(treesit-font-lock-rules treesit-range-rules))
+        (let ((items args)
+              (i 1))
+          (while items
             (if (not (and (keywordp (car items))
-                          (consp (cdr items))))
+                          (cdr items)))
                 (relint--check-treesit-queries
                  (car items) (cons 'call-to (car form))
                  pos (cons i path))
@@ -2324,58 +2374,71 @@ directly."
               (setq i (1+ i)))
             (setq items (cdr items))
             (setq i (1+ i)))))
-       (`(treesit-query-expand ,query . ,_)
-        (relint--check-treesit-queries query (cons 'call-to (car form))
-                                       pos (cons 1 path)))
-       (`(,(or 'treesit-node-top-level 'treesit-query-capture
-               'treesit-query-compile 'treesit-query-range
-               'treesit-query-string)
-          ,_ ,query . ,_)
-        (relint--check-treesit-queries query (cons 'call-to (car form))
-                                       pos (cons 2 path)))
-       (`(set (make-local-variable ',(and (pred symbolp) name)) ,expr)
-        (cond ((memq name relint--known-regexp-variables)
-               (relint--check-re expr name pos (cons 2 path)))
-              ((eq name 'font-lock-defaults)
-               (relint--check-font-lock-defaults expr name pos (cons 2 path)))
-              ((string-match-p (rx "font-lock-keywords") (symbol-name name))
-               (relint--check-font-lock-keywords expr name pos (cons 2 path)))
-              ((memq name relint--known-imenu-variables)
-               (relint--check-imenu-generic-expression
-                expr name pos (cons 2 path)))))
-       (`(define-generic-mode ,name ,_ ,_ ,font-lock-list ,auto-mode-list . ,_)
-        (let ((origin (format "define-generic-mode %s" name)))
+       ((eq head 'treesit-query-expand)
+        (let ((query (car args)))
+          (relint--check-treesit-queries query (cons 'call-to (car form))
+                                         pos (cons 1 path))))
+       ((memq head '( treesit-node-top-level treesit-query-capture
+                      treesit-query-compile treesit-query-range
+                      treesit-query-string))
+        (let ((query (cadr args)))
+          (relint--check-treesit-queries query (cons 'call-to (car form))
+                                         pos (cons 2 path))))
+       ((eq head 'set)
+        (pcase args
+          (`((make-local-variable ',(and (pred symbolp) name)) ,expr . ,_)
+           (cond ((memq name relint--known-regexp-variables)
+                  (relint--check-re expr name pos (cons 2 path)))
+                 ((eq name 'font-lock-defaults)
+                  (relint--check-font-lock-defaults
+                   expr name pos (cons 2 path)))
+                 ((string-match-p (rx "font-lock-keywords") (symbol-name name))
+                  (relint--check-font-lock-keywords
+                   expr name pos (cons 2 path)))
+                 ((memq name relint--known-imenu-variables)
+                  (relint--check-imenu-generic-expression
+                   expr name pos (cons 2 path)))))))
+       ((eq head 'define-generic-mode)
+        (let* ((name (nth 0 args))
+               (font-lock-list (nth 3 args))
+               (auto-mode-list (nth 4 args))
+               (origin (format "define-generic-mode %s" name)))
           (relint--check-font-lock-keywords font-lock-list origin
                                             pos (cons 4 path))
           (relint--check-list auto-mode-list origin pos (cons 5 path) t)))
-       (`(,(or 'syntax-propertize-rules 'syntax-propertize-precompile-rules)
-          . ,rules)
-        (let ((name (cons 'call-to (car form)))
+       ((memq head '( syntax-propertize-rules
+                      syntax-propertize-precompile-rules))
+        (let ((rules args)
+              (name (cons 'call-to (car form)))
               (index 1))
           (dolist (item rules)
             (when (consp item)
               (relint--check-re (car item) name pos (cons 0 (cons index path))))
             (setq index (1+ index)))))
-       (`(add-to-list 'auto-mode-alist ,elem . ,_)
-        (relint--check-auto-mode-alist-expr
-         elem (car form) pos (cons 2 path)))
-       (`(modify-coding-system-alist ,type ,re-arg ,_)
-        (funcall
-         (if (eq (relint--eval-or-nil type) 'file)
-             #'relint--check-file-name-re
-           #'relint--check-re)
-         re-arg (cons 'call-to (car form)) pos (cons 2 path)))
-       (`(,name . ,args)
-        (let ((alias (assq name relint--alias-defs)))
+       ((eq head 'add-to-list)
+        (when (equal (car args) ''auto-mode-alist)
+          (let ((elem (cadr args)))
+            (relint--check-auto-mode-alist-expr
+             elem (car form) pos (cons 2 path)))))
+       ((eq head 'modify-coding-system-alist)
+        (let ((type (nth 0 args))
+              (re-arg (nth 1 args)))
+          (funcall
+           (if (eq (relint--eval-or-nil type) 'file)
+               #'relint--check-file-name-re
+             #'relint--check-re)
+           re-arg (cons 'call-to (car form)) pos (cons 2 path))))
+       (t
+        (let ((alias (assq head relint--alias-defs)))
           (when alias
             (relint--check-form-recursively-2
              (cons (cdr alias) args) mutables pos path)))
 
         ;; Check calls to remembered functions with regexp arguments.
-        (let ((indices (cdr (assq name relint--regexp-functions))))
+        (let ((indices (cdr (assq head relint--regexp-functions))))
           (when indices
             (let ((index 0))
-              (while (and indices (consp args))
+              (while (and indices args)
                 (when (= index (car indices))
                   (unless (and (symbolp (car args))
                                (memq (car args) relint--checked-variables))
@@ -2391,7 +2454,7 @@ directly."
      ;; (prog{1,2,n}, save-excursion...) could be scanned with full
      ;; mutables since all args are evaluated once.
      (let ((index 0))
-       (while (consp form)
+       (while form
          (cond
           ((consp (car form))
            ;; Check subforms with the assumption that nothing can be mutated,
@@ -2399,12 +2462,12 @@ directly."
            (relint--check-form-recursively-2
             (car form) nil pos (cons index path)))
           ((and (memq (car form) '(:regexp :regex))
-                (consp (cdr form)))
+                (cdr form))
            (relint--check-re (cadr form)
                              (cons 'parameter (car form))
                              pos (cons (1+ index) path))))
          (setq form (cdr form))
-         (setq index (1+ index)))))))
+         (setq index (1+ index))))))))
 
 (defun relint--show-errors (error-buffer quiet)
   (unless (or noninteractive quiet (not error-buffer))
