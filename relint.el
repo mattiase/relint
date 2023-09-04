@@ -2638,6 +2638,11 @@ STRING-START is the start of the string literal (first double quote)."
                         (format " (%s suppressed)" suppressed)))))
     (unless (or quiet (and noninteractive (zerop errors)))
       (unless noninteractive
+        ;; Only set `next-error-last-buffer' when there is an actual
+        ;; diagnostic to jump to, to avoid unnecessarily losing track
+        ;; of the previous next-error buffer if any.
+        (when (and error-buffer (> errors suppressed))
+          (setq next-error-last-buffer error-buffer))
         (relint--add-to-error-buffer error-buffer
                                      (format "\nFinished -- %s.\n" msg)))
       (message "relint: %s." msg))))
