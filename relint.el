@@ -656,8 +656,13 @@ into something that can be called safely."
   (if (fboundp 'take)
       #'take
     (lambda (n list)
-      "The N first elements of LIST."
       (cl-loop repeat n for x in list collect x))))
+
+(defalias 'relint--proper-list-p
+  (if (fboundp 'proper-list-p)
+      #'proper-list-p
+    (lambda (x)
+      (and (listp x) (ignore-errors (length x))))))
 
 (defun relint--eval (form)
   "Evaluate a form. Throw `relint-eval' `no-value' if something could
@@ -1987,7 +1992,7 @@ directly."
   (let ((head (car form))
         (args (cdr form)))
     (cond
-     ((not (proper-list-p args))
+     ((not (relint--proper-list-p args))
       ;; Dotted list: just recurse.
       (let ((index 0))
         (while (consp form)
