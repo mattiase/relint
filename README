@@ -31,6 +31,8 @@ skip-syntax-forward and skip-syntax-backward.
 
       M-x relint-current-buffer
 
+  In the *relint* buffer, pressing "g" will re-run the same check.
+
   - From batch mode:
 
       emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
@@ -39,13 +41,17 @@ skip-syntax-forward and skip-syntax-backward.
     (Options for finding relint and xr need to be added after
     -batch, either -f package-initialize or -L DIR.)
 
-    In the *relint* buffer, pressing "g" will re-run the same check.
-
   - From Emacs Lisp code, use one of the above functions or
 
       (relint-buffer BUFFER)
 
     which returns a list of diagnostics.
+
+  - From other packages:
+
+    The flycheck-relint and flymake-relint packages run relint
+    automatically via flycheck and flymake, respectively.
+    They are available from the MELPA package archive.
 
 
 * Installation
