@@ -289,8 +289,6 @@ skip-syntax-forward and skip-syntax-backward.
 
     Another example: \(?:a*b+\)+ is better written a*b[ab]* .
 
-    This check is only enabled when relint-xr-checks = all.
-
   - Possibly mistyped ':?' at start of group
 
     A group starts as \(:? which makes it likely that it was really
