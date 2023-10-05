@@ -447,3 +447,6 @@ skip-syntax-forward and skip-syntax-backward.
   If you believe that an error could have been discovered but wasn't,
   or that an unwarranted complaint could be avoided, please report it
   as a bug.
+
+  If you find a complaint hard to understand, don't be afraid to ask.
+  Maybe it could be explained in a better way.
