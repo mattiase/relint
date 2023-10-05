@@ -3,8 +3,8 @@
 ;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
-;; Version: 1.23
-;; Package-Requires: ((xr "1.24") (emacs "26.1"))
+;; Version: 1.24
+;; Package-Requires: ((xr "1.25") (emacs "26.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -29,6 +29,9 @@
 
 ;;; News:
 
+;; Version 1.24
+;; - Fix a `next-error' bug
+;; - Some performance improvements
 ;; Version 1.23
 ;; - New defcustom `relint-xr-checks' that enables optional xr checks.
 ;; - Add regexp detection in uses of the treesit API.
