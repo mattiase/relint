@@ -26,12 +26,12 @@ jobs:
           version: ${{matrix.emacs_version}}
 
       - name: Check out relint
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           path: relint
 
       - name: Check out xr
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: mattiase/xr
           path: xr
