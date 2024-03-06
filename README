@@ -35,7 +35,7 @@ skip-syntax-forward and skip-syntax-backward.
 
   - From batch mode:
 
-      emacs -batch -l relint.el -f relint-batch FILES-AND-DIRS...
+      emacs -batch -l relint -f relint-batch FILES-AND-DIRS...
 
     where directories are scanned recursively.
     (Options for finding relint and xr need to be added after
