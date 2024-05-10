@@ -2500,7 +2500,8 @@ Return a list of (FORM . STARTING-POSITION)."
            (setq keep-going nil))
           (invalid-read-syntax
            (cond
-            ((member (cadr err) '("#" "#="))
+            ((let ((errstr (cadr err)))
+               (and (stringp errstr) (string-prefix-p "#" errstr)))
              (goto-char pos)
              (forward-sexp 1))
             (t
