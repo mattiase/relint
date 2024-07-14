@@ -858,7 +858,7 @@ not be evaluated safely."
        ;; Functions taking a function as first argument,
        ;; and with functions as keyword arguments :test, :test-not, :key
        ((memq head '(cl-reduce cl-remove-if cl-remove-if-not
-                     cl-find-if cl-find-if not
+                     cl-find-if cl-find-if-not
                      cl-position-if cl-position-if-not
                      cl-count-if cl-count-if-not
                      cl-member-if cl-member-if-not
