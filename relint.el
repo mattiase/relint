@@ -140,13 +140,18 @@ list indices to follow to target)."
       (goto-char (match-end 0)))
     (point)))
 
-(defun relint--string-pos (pos n)
+(defun relint--string-pos (pos n endp)
   "Position of character N in a string expression at POS,
-or nil if no position could be determined."
+or nil if no position could be determined.
+If ENDP is true, use the last position of the character, otherwise the first,
+in case it occupies more than one position in the buffer."
   (save-excursion
     (goto-char pos)
     (pcase (read (current-buffer))
-      ((pred stringp) (relint--literal-string-pos pos n))
+      ((pred stringp)
+       (if endp
+           (1- (relint--literal-string-pos pos (1+ n)))
+         (relint--literal-string-pos pos n)))
       (`(concat . ,args)
        ;; Find out in which argument the sought position is.
        (let ((index 1))
@@ -157,7 +162,9 @@ or nil if no position could be determined."
          (and args (stringp (car args))
               (let ((string-pos
                      (relint--pos-from-start-pos-path pos (list index))))
-                (relint--literal-string-pos string-pos n))))))))
+                (if endp
+                    (1- (relint--literal-string-pos string-pos (1+ n)))
+                  (relint--literal-string-pos string-pos n)))))))))
 
 (defun relint--suppression (pos message)
   "Whether there is a suppression for MESSAGE at POS."
@@ -193,23 +200,41 @@ or nil if no position could be determined."
       (relint--add-to-error-buffer error-buffer (concat string "\n"))
     (message "%s" string)))
 
+(defun relint--col-at-pos (pos)
+ (save-excursion
+   (goto-char pos)
+   (1+ (current-column))))
+
 (cl-defun relint--output-report (error-buffer file
-                                 (message expr-pos error-pos
-                                  str str-idx severity))
-  (let* ((pos (or error-pos expr-pos))
-         (line (line-number-at-pos pos t))
-         (col (save-excursion
-                (goto-char pos)
-                (1+ (current-column)))))
+                                 (message expr-pos beg-pos end-pos
+                                  str beg-idx end-idx severity))
+  (let* ((beg (or beg-pos expr-pos))
+         (end end-pos)
+         (beg-line (line-number-at-pos beg t))
+         (end-line (cond ((eq beg end) beg-line)
+                         (end (line-number-at-pos end t))))
+         (beg-col (relint--col-at-pos beg))
+         (end-col (cond ((eq beg end) beg-col)
+                        (end (relint--col-at-pos end))))
+         (loc-str (cond
+                   ((and end-line (< beg-line end-line))
+                    (format "%d.%d-%d.%d" beg-line beg-col end-line end-col))
+                   (end-col
+                    (format "%d:%d-%d" beg-line beg-col end-col))
+                   (t
+                    (format "%d:%d" beg-line beg-col)))))
     (relint--output-message
      error-buffer
      (concat
-      (format "%s:%d:%d: " file line col)
+      (format "%s:%s: " file loc-str)
       (and (eq severity 'error) "error: ")
       message
-      (and str-idx (format " (pos %d)" str-idx))
+      (cond ((and beg-idx end-idx (< beg-idx end-idx))
+             (format " (pos %d..%d)" beg-idx end-idx))
+            (beg-idx (format " (pos %d)" beg-idx)))
       (and str     (format "\n  %s" (relint--quote-string str)))
-      (and str-idx (format "\n   %s" (relint--caret-string str str-idx)))))))
+      (and beg-idx (format "\n   %s" (relint--caret-string
+                                      str beg-idx end-idx)))))))
   
 (defun relint--output-complaints (buffer file complaints error-buffer)
   (with-current-buffer buffer
@@ -217,21 +242,45 @@ or nil if no position could be determined."
       (relint--output-report error-buffer file complaint))))
 
 (defvar relint--suppression-count)
-(defvar relint--complaints)
+(defvar relint--complaints
+  ;; list of (MESSAGE EXPR-POS BEG-POS END-POS STR BEG-IDX END-IDX SEVERITY)
+  ;; MESSAGE  string of message
+  ;; EXPR-POS position of expression or nil
+  ;; BEG-POS  exact first position of error or nil
+  ;; END-POS  exact last position of error or nil
+  ;; STR      string that is the subject of message
+  ;; BEG-IDX  starting index into STR or nil
+  ;; END-IDX  ending index into STR or nil
+  ;; SEVERITY `error' or `warning'
+  )
 
-(defun relint--report (start-pos path message str str-idx severity)
+(defun relint--report (message expr-pos beg-pos end-pos
+                       str beg-idx end-idx severity)
+  (if (relint--suppression (or expr-pos beg-pos) message)
+      (setq relint--suppression-count (1+ relint--suppression-count))
+    (push (list message expr-pos beg-pos end-pos str beg-idx end-idx severity)
+          relint--complaints)))
+
+(defun relint--report-at-path (start-pos path msg str beg-idx end-idx severity)
   (let* ((expr-pos (relint--pos-from-start-pos-path start-pos path))
-         (error-pos (and str-idx (relint--string-pos expr-pos str-idx))))
-    (if (relint--suppression expr-pos message)
-        (setq relint--suppression-count (1+ relint--suppression-count))
-      (push (list message expr-pos error-pos str str-idx severity)
-            relint--complaints))))
+         (beg-pos (and beg-idx (relint--string-pos expr-pos beg-idx nil)))
+         (end-pos (and end-idx (relint--string-pos expr-pos end-idx t))))
+    (relint--report msg expr-pos beg-pos end-pos str beg-idx end-idx severity)))
+
+;; FIXME: need a way to report a diagnostic for an interval-location
+;; whose extent is a Lisp expression!
+
+(defun relint--warn-at (beg-pos end-pos message)
+  (relint--report message nil beg-pos end-pos nil nil nil 'warning))
 
 (defun relint--warn (start-pos path message &optional str str-idx)
-  (relint--report start-pos path message str str-idx 'warning))
+  (relint--report-at-path start-pos path message str str-idx str-idx 'warning))
+
+(defun relint--err-at (pos message)
+  (relint--report message nil pos nil nil nil nil 'error))
 
 (defun relint--err (start-pos path message &optional str str-idx)
-  (relint--report start-pos path message str str-idx 'error))
+  (relint--report-at-path start-pos path message str str-idx str-idx 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -254,10 +303,17 @@ or nil if no position could be determined."
 (defun relint--quote-string (str)
   (concat "\"" (relint--escape-string str t) "\""))
 
-(defun relint--caret-string (string pos)
-  (let ((quoted-pos
-         (length (relint--escape-string (substring string 0 pos) t))))
-    (concat (make-string quoted-pos ?.) "^")))
+(defun relint--caret-string (string beg end)
+  (let* ((beg-col
+          (length (relint--escape-string (substring string 0 beg) t)))
+         (end-col
+          (if end
+              ;; handle escaped chars such as \n
+              (1- (length (relint--escape-string
+                           (substring string 0 (1+ end)) t)))
+            beg-col)))
+    (concat (make-string beg-col ?.)
+            (make-string (- end-col beg-col -1) ?^))))
 
 (defun relint--expand-name (name)
   (pcase-exhaustive name
@@ -278,9 +334,13 @@ or nil if no position could be determined."
                          string nil)
             nil))))
     (dolist (c complaints)
-      (relint--warn pos path
-                    (format "In %s: %s" (relint--expand-name name) (cdr c))
-                    string (car c)))))
+      (let* ((beg (nth 0 c))
+             (end (nth 1 c))
+             (msg (nth 2 c))
+             (severity (nth 3 c)))
+        (relint--report-at-path
+         pos path (format "In %s: %s" (relint--expand-name name) msg)
+         string beg end severity)))))
 
 (defun relint--check-skip-set (skip-set-string name pos path)
   (relint--check-string skip-set-string #'xr-skip-set-lint name pos path))
@@ -793,6 +853,7 @@ not be evaluated safely."
 
        ;; sort: accept missing items in the list argument.
        ((eq head 'sort)
+        ;; FIXME: handle new-style `sort' args
         (let* ((arg (relint--eval-list (car body)))
                (seq (cond ((listp arg) (remq nil arg))
                           ((sequencep arg) (copy-sequence arg))
@@ -2392,10 +2453,10 @@ Return a list of (FORM . STARTING-POSITION)."
              (goto-char pos)
              (forward-sexp 1))
             (t
-             (relint--err (point) nil (prin1-to-string err))
+             (relint--err-at (point) (prin1-to-string err))
              (setq keep-going nil))))
           (error
-           (relint--err (point) nil (prin1-to-string err))
+           (relint--err-at (point) (prin1-to-string err))
            (setq keep-going nil)))
         (when (consp form)
           (push (cons form pos) forms))))
@@ -2444,13 +2505,13 @@ STRING-START is the start of the string literal (first double quote)."
     (unless (or (bolp)
                 (and (memq c '(?\( ?\) ?\[ ?\] ?\'))
                      (relint--in-doc-string-p string-start)))
-      (relint--warn (point) nil
-                    (if (eq c ?x)
-                        (format-message
-                         "Character escape `\\x' not followed by hex digit")
-                      (format-message
-                       "Ineffective string escape `\\%s'"
-                       (relint--escape-string (char-to-string c) nil)))))))
+      (relint--warn-at (point) (1+ (point))
+                       (if (eq c ?x)
+                           (format-message
+                            "Character escape `\\x' not followed by hex digit")
+                         (format-message
+                          "Ineffective string escape `\\%s'"
+                          (relint--escape-string (char-to-string c) nil)))))))
 
 (defun relint--check-for-misplaced-backslashes ()
   "Check for misplaced backslashes in the current buffer."
@@ -2480,6 +2541,18 @@ STRING-START is the start of the string literal (first double quote)."
         (unless (eobp)
           (forward-char 1))))))
 
+(defalias 'relint--sort-with-key
+  (if (>= emacs-major-version 30)
+      (lambda (key-fun list)
+        (with-suppressed-warnings ((callargs sort))  ; hush emacs <30
+          (sort list :key key-fun :in-place t)))
+    (lambda (key-fun list) 
+      (mapcar #'cdr (sort (mapcar (lambda (x) (cons (funcall key-fun x) x))
+                                  list)
+                          #'car-less-than-car))))
+  "Sort LIST using KEY-FUN for each element as the key.
+The keys are sorted numerically, in ascending order.")
+
 (defun relint--scan-current-buffer ()
   (let* ((relint--suppression-count 0)
          (relint--complaints nil)
@@ -2501,16 +2574,13 @@ STRING-START is the start of the string literal (first double quote)."
     (relint--check-for-misplaced-backslashes)
     (let ((complaints (nreverse relint--complaints)))
       (cons
-       (sort complaints
-             ;; Sort by error position if available, expression position
-             ;; otherwise.
-             (lambda (a b)
-               (let ((expr-pos-a (nth 1 a))
-                     (expr-pos-b (nth 1 b))
-                     (error-pos-a (nth 2 a))
-                     (error-pos-b (nth 2 b)))
-                 (< (or error-pos-a expr-pos-a)
-                    (or error-pos-b expr-pos-b)))))
+       (relint--sort-with-key
+        ;; Sort by error position if available, expression position otherwise.
+        (lambda (x)
+          (let ((expr-pos (nth 1 x))
+                (error-pos (nth 2 x)))
+            (or error-pos expr-pos)))
+        complaints)
        relint--suppression-count))))
 
 (defvar relint-last-target nil
@@ -2614,7 +2684,7 @@ TARGET is the file or directory to use for a repeated run."
 (defun relint--scan-buffer (buffer)
   "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
 COMPLAINTS is a list of (unsuppressed) diagnostics each on the form
-   (MESSAGE EXPR-POS ERROR-POS STRING STRING-IDX SEVERITY)
+   (MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY)
 and SUPPRESSED is the number of suppressed diagnostics."
   (with-current-buffer buffer
     (unless (derived-mode-p 'emacs-lisp-mode)
@@ -2665,15 +2735,19 @@ The buffer must be in emacs-lisp-mode."
   "Scan BUFFER for regexp errors. Return list of diagnostics.
 Each element in the returned list has the form
 
-  (MESSAGE EXPR-POS ERROR-POS STRING STRING-IDX SEVERITY),
+  (MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY)
 
-where MESSAGE is the message string, EXPR-POS the location of the
-flawed expression, ERROR-POS the exact position of the error or
-nil if unavailable, STRING is nil or a string to which the
-message pertains, STRING-IDX is nil or an index into STRING,
-and SEVERITY is `error' or `warning'.
-The intent is that ERROR-POS is the position in the buffer that
-corresponds to STRING at STRING-IDX, if such a location can be
+where
+
+  MESSAGE is the message string
+  EXPR-POS the location of the flawed expression or nil
+  BEG-POS and END-POS the exact boundaries of the error or nil if unavailable
+  STRING is nil or a string to which the message pertains
+  BEG-IDX and END-IDX are bounds in STRING or nil,
+  and SEVERITY is `error' or `warning'.
+
+The intent is that BEG-POS..END-POS is the buffer range that
+corresponds to STRING at BEG-IDX..END-IDX, if such a location can be
 determined."
   (car (relint--scan-buffer buffer)))
 

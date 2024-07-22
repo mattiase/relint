@@ -9,10 +9,10 @@
 6.elisp:19:19: Value from `rx' cannot be spliced into `[...]'
 6.elisp:20:19: Value from `rx-to-string' cannot be spliced into `[...]'
 6.elisp:23:19: Value from `regexp-quote' cannot be spliced into `[...]'
-6.elisp:28:24: In call to skip-chars-forward: Suspect skip set framed in `[...]' (pos 0)
+6.elisp:28:24-28: In call to skip-chars-forward: Suspect skip set framed in `[...]' (pos 0..4)
   "[a-z]"
-   ^
-6.elisp:29:26: In call to skip-chars-backward: Duplicated character `a' (pos 1)
+   ^^^^^
+6.elisp:29:26-26: In call to skip-chars-backward: Duplicated character `a' (pos 1)
   "aa"
    .^
 6.elisp:30:23: `some-re' cannot be used for arguments to `skip-chars-forward'

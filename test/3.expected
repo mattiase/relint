@@ -34,10 +34,10 @@
 3.elisp:137:4: In another-bad-regexp-list: Duplicated `7' inside character alternative (pos 2)
   "[77]"
    ..^
-3.elisp:141:13: In call to looking-at: Unescaped literal `+' (pos 0)
+3.elisp:141:13-13: In call to looking-at: Unescaped literal `+' (pos 0)
   "+abcdefgh"
    ^
-3.elisp:157:13: In call to looking-at: Unescaped literal `?' (pos 0)
+3.elisp:157:13-13: In call to looking-at: Unescaped literal `?' (pos 0)
   "?abc"
    ^
 3.elisp:164:4: In call to looking-at: Duplicated `A' inside character alternative (pos 2)
