@@ -1878,25 +1878,6 @@ return (NAME); on syntax error, return nil."
                      nil
                    val))))))
 
-(defun relint--check-let* (bindings body mutables pos path index)
-  "Check the BINDINGS and BODY of a `let*' form."
-  (if bindings
-      (let ((b (relint--check-and-eval-let-binding
-                (car bindings) mutables pos (cons index (cons 1 path)))))
-        (if b
-            (let ((relint--locals (cons b relint--locals)))
-              (relint--check-let* (cdr bindings) body (cons (car b) mutables)
-                                  pos path (1+ index)))
-          (relint--check-let* (cdr bindings) body mutables
-                              pos path (1+ index))))
-    (let ((index 2))
-      (while (consp body)
-        (when (consp (car body))
-          (relint--check-form-recursively-2
-           (car body) mutables pos (cons index path)))
-        (setq body (cdr body))
-        (setq index (1+ index))))))
-
 (defun relint--check-form-recursively-2 (form mutables pos path)
   "Check FORM (at POS, PATH) recursively.
 MUTABLES is a list of lexical variables in a scope which FORM may mutate
@@ -1914,35 +1895,34 @@ directly."
           (setq form (cdr form))
           (setq index (1+ index)))))
      ;; now we can assume that `args' is a proper list
-     ((eq head 'let)
+     ((memq head '(let let*))
       (let ((bindings (car args)))
         (when (listp bindings)
-          (let* ((body (cdr args))
+          (let* ((relint--locals relint--locals)
+                 (new-bindings nil)
+                 (let* (eq head 'let*))
                  (i 0)
                  (bindings-path (cons 1 path))
-                 (new-bindings nil)
                  (body-mutables mutables))
             (while (consp bindings)
               (let ((b (relint--check-and-eval-let-binding
                         (car bindings) mutables pos (cons i bindings-path))))
                 (when b
-                  (push b new-bindings)
+                  (push b (if let* relint--locals new-bindings))
                   (push (car b) body-mutables))
                 (setq i (1+ i))
                 (setq bindings (cdr bindings))))
-            (let ((relint--locals
-                   (append new-bindings relint--locals))
-                  (index 2))
+            (when new-bindings
+              (setq relint--locals (append (nreverse new-bindings)
+                                           relint--locals)))
+            (let ((index 2)
+                  (body (cdr args)))
               (while body
                 (when (consp (car body))
                   (relint--check-form-recursively-2
                    (car body) body-mutables pos (cons index path)))
                 (setq body (cdr body))
                 (setq index (1+ index))))))))
-     ((eq head 'let*)
-      (let ((bindings (car args)))
-        (when (listp bindings)
-          (relint--check-let* bindings (cdr args) mutables pos path 0))))
      ((memq head '(setq setq-local))
       ;; Only mutate lexical variables in the mutation list, which means
       ;; that this form will be executed exactly once during their remaining
