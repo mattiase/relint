@@ -333,6 +333,13 @@ in case it occupies more than one position in the buffer."
                                  (relint--expand-name name) (cadr err))
                          string nil)
             nil))))
+    ;; FIXME: Compatibility hack: if given a list-of-lists, flatten it.
+    ;; We should move to the list-of-lists repr for our purposes too,
+    ;; to preserve diag clusters when sorting.
+    (when (consp (car complaints))
+      (setq complaints (mapcar #'car complaints)) ;HACK!
+      ;;(setq complaints (apply #'append complaints))
+      )
     (dolist (c complaints)
       (let* ((beg (nth 0 c))
              (end (nth 1 c))
@@ -380,23 +387,27 @@ in case it occupies more than one position in the buffer."
   (let ((errs nil)
         (start (if (string-prefix-p "^" syntax) 1 0)))
     (when (member syntax '("" "^"))
-      (push (cons start "Empty syntax string") errs))
+      (push (list start nil "Empty syntax string" 'warning) errs))
     (let ((seen nil))
       (dolist (i (number-sequence start (1- (length syntax))))
         (let* ((c (aref syntax i))
                (sym (cdr (assq c relint--syntax-codes))))
           (if sym
               (if (memq sym seen)
-                  (push (cons i (relint--escape-string
-                                 (format-message
-                                  "Duplicated syntax code `%c'" c)
-                                 nil))
+                  (push (list (list i i
+                                    (relint--escape-string
+                                     (format-message
+                                      "Duplicated syntax code `%c'" c)
+                                     nil)
+                                    'warning))
                         errs)
                 (push sym seen))
-            (push (cons i (relint--escape-string
-                           (format-message
-                            "Invalid char `%c' in syntax string" c)
-                           nil))
+            (push (list (list i i
+                              (relint--escape-string
+                               (format-message
+                                "Invalid char `%c' in syntax string" c)
+                               nil)
+                              'warning))
                   errs)))))
     (nreverse errs)))
 
