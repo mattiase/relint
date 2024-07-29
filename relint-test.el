@@ -140,10 +140,13 @@ and a path."
             (relint-buffer buf)
             '(["In call to looking-at: Repetition of repetition"
                20 28 28 "broken**regexp" 7 7 warning]
+              ["This is the inner expression"
+               20 26 27 "broken**regexp" 5 6 info]
               ["In call to looking-at: Unescaped literal `^'"
                50 nil nil "^^" 1 1 warning]
               ["In call to looking-at: Duplicated `g' inside character alternative"
                82 105 105 "abcdef[gg]" 8 8 warning]
+              ["Previous occurrence here" 82 104 104 "abcdef[gg]" 7 7 info]
               ["In call to string-match: Unterminated character alternative"
                125 126 128 "[xy" 0 2 error]))))
       (kill-buffer buf))))

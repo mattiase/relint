@@ -1,33 +1,63 @@
 10.elisp:7:17-17: In test-1-regexp-list: Duplicated `a' inside character alternative (pos 2)
   "[aa]"
    ..^
+10.elisp:7:16-16: info: Previous occurrence here (pos 1)
+  "[aa]"
+   .^
 10.elisp:8:21-21: In test-1-regexp-list: Duplicated `b' inside character alternative (pos 2)
   "[bb]"
    ..^
+10.elisp:8:20-20: info: Previous occurrence here (pos 1)
+  "[bb]"
+   .^
 10.elisp:11:13-13: In test-2-regexp-alist: Duplicated `c' inside character alternative (pos 2)
   "[cc]"
    ..^
+10.elisp:11:12-12: info: Previous occurrence here (pos 1)
+  "[cc]"
+   .^
 10.elisp:12:5: In test-2-regexp-alist: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
+10.elisp:12:5: info: Previous occurrence here (pos 1)
+  "[dd]"
+   .^
 10.elisp:13:5: In test-2-regexp-alist: Duplicated `e' inside character alternative (pos 2)
   "[ee]"
    ..^
+10.elisp:13:5: info: Previous occurrence here (pos 1)
+  "[ee]"
+   .^
 10.elisp:14:5: In test-2-regexp-alist: Duplicated `f' inside character alternative (pos 2)
   "[ff]"
    ..^
+10.elisp:14:5: info: Previous occurrence here (pos 1)
+  "[ff]"
+   .^
 10.elisp:14:5: In test-2-regexp-alist: Duplicated `g' inside character alternative (pos 2)
   "[gg]"
    ..^
+10.elisp:14:5: info: Previous occurrence here (pos 1)
+  "[gg]"
+   .^
 10.elisp:15:13-13: In test-2-regexp-alist: Duplicated `h' inside character alternative (pos 2)
   "[hh]"
    ..^
+10.elisp:15:12-12: info: Previous occurrence here (pos 1)
+  "[hh]"
+   .^
 10.elisp:16:24-24: Single-character range `z-z' (pos 0)
   "z-z"
    ^
 10.elisp:20:9-9: In test-3-regexp-alist: Duplicated `i' inside character alternative (pos 2)
   "[ii]"
    ..^
+10.elisp:20:8-8: info: Previous occurrence here (pos 1)
+  "[ii]"
+   .^
 10.elisp:20:18-18: In test-3-regexp-alist: Duplicated `j' inside character alternative (pos 2)
   "[jj]"
    ..^
+10.elisp:20:17-17: info: Previous occurrence here (pos 1)
+  "[jj]"
+   .^

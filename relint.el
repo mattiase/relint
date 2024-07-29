@@ -234,7 +234,8 @@ in case it occupies more than one position in the buffer."
      error-buffer
      (concat
       (format "%s:%s: " file loc-str)
-      (and (eq severity 'error) "error: ")
+      (cond ((eq severity 'error) "error: ")
+            ((eq severity 'info) "info: "))
       message
       (cond ((and beg-idx end-idx (< beg-idx end-idx))
              (format " (pos %d..%d)" beg-idx end-idx))
@@ -245,12 +246,13 @@ in case it occupies more than one position in the buffer."
   
 (defun relint--output-complaints (buffer file complaints error-buffer)
   (with-current-buffer buffer
-    (dolist (complaint complaints)
-      (relint--output-complaint error-buffer file complaint))))
+    (dolist (group complaints)
+      (dolist (complaint group)
+        (relint--output-complaint error-buffer file complaint)))))
 
 (defvar relint--suppression-count)
 (defvar relint--complaints
-  ;; list of
+  ;; list of lists of
   ;;   [MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
   ;; with fields:
   ;;   MESSAGE   string of message
@@ -263,30 +265,48 @@ in case it occupies more than one position in the buffer."
   ;;   SEVERITY  `error', `warning' or `info'
   )
 
-(defun relint--report (message expr-pos beg-pos end-pos
-                       str beg-idx end-idx severity)
+(defun relint--report-group (group)
+  (let* ((diag (car group))
+         (message (aref diag 0))
+         (expr-pos (aref diag 1))
+         (beg-pos (aref diag 2)))
   (if (relint--suppression (or expr-pos beg-pos) message)
       (setq relint--suppression-count (1+ relint--suppression-count))
-    (push (vector message expr-pos beg-pos end-pos str beg-idx end-idx severity)
-          relint--complaints)))
+    (push group relint--complaints))))
+
+(defsubst relint--make-diag (message expr-pos beg-pos end-pos
+                             str beg-idx end-idx severity)
+  (vector message expr-pos beg-pos end-pos str beg-idx end-idx severity))
+
+(defun relint--report-one (message expr-pos beg-pos end-pos
+                           str beg-idx end-idx severity)
+  (relint--report-group
+   (list (relint--make-diag message expr-pos beg-pos end-pos
+                            str beg-idx end-idx severity))))
+
+(defun relint--diag-on-string (expr-pos string message beg-idx end-idx severity)
+  (let* ((beg-pos (and beg-idx (relint--string-pos expr-pos beg-idx nil)))
+         (end-pos (and end-idx (relint--string-pos expr-pos end-idx t))))
+    (relint--make-diag message expr-pos beg-pos end-pos
+                       string beg-idx end-idx severity)))
 
 (defun relint--report-at-path (start-pos path msg str beg-idx end-idx severity)
-  (let* ((expr-pos (relint--pos-from-start-pos-path start-pos path))
-         (beg-pos (and beg-idx (relint--string-pos expr-pos beg-idx nil)))
-         (end-pos (and end-idx (relint--string-pos expr-pos end-idx t))))
-    (relint--report msg expr-pos beg-pos end-pos str beg-idx end-idx severity)))
+  (let ((expr-pos (relint--pos-from-start-pos-path start-pos path)))
+    (relint--report-group
+     (list (relint--diag-on-string
+            expr-pos str msg beg-idx end-idx severity)))))
 
 ;; FIXME: need a way to report a diagnostic for an interval-location
 ;; whose extent is a Lisp expression!
 
 (defun relint--warn-at (beg-pos end-pos message)
-  (relint--report message nil beg-pos end-pos nil nil nil 'warning))
+  (relint--report-one message nil beg-pos end-pos nil nil nil 'warning))
 
 (defun relint--warn (start-pos path message &optional str str-beg str-end)
   (relint--report-at-path start-pos path message str str-beg str-end 'warning))
 
 (defun relint--err-at (pos message)
-  (relint--report message nil pos nil nil nil nil 'error))
+  (relint--report-one message nil pos nil nil nil nil 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -329,36 +349,42 @@ in case it occupies more than one position in the buffer."
     ((pred stringp) name)
     ((pred symbolp) (symbol-name name))))
 
-(defun relint--message-with-name (msg name)
+(defun relint--message-with-context (msg name)
   (format "In %s: %s" (relint--expand-name name) msg))
 
-(defun relint--check-string (complaints string name pos path)
-  ;; FIXME: Compatibility hack: if given a list-of-lists, flatten it.
-  ;; We should move to the list-of-lists repr for our purposes too,
-  ;; to preserve diag clusters when sorting.
-  (when (consp (car complaints))
-    (setq complaints (mapcar #'car complaints)) ;HACK!
-    ;;(setq complaints (apply #'append complaints))
-    )
-  (dolist (c complaints)
-    (let* ((beg (nth 0 c))
-           (end (nth 1 c))
-           (msg (nth 2 c))
-           (severity (nth 3 c)))
-      (relint--report-at-path pos path (relint--message-with-name msg name)
-                              string beg end severity))))
+(defun relint--string-complaints (complaints string name start-pos path)
+  (when complaints
+    (let ((expr-pos (relint--pos-from-start-pos-path start-pos path)))
+      (dolist (cg complaints)
+        (relint--report-group
+         (mapcar (lambda (c)
+                   (let* ((beg (nth 0 c))
+                          (end (nth 1 c))
+                          (msg (nth 2 c))
+                          (severity (nth 3 c))
+                          ;; Only use message-with-context for non-info diags
+                          (message (if (eq severity 'info)
+                                       msg
+                                     (relint--message-with-context msg name))))
+                     (relint--diag-on-string expr-pos string
+                                             message beg end severity)))
+                 cg))))))
 
 (defun relint--check-skip-set (skip-set name pos path)
-  (relint--check-string (xr-skip-set-lint skip-set) skip-set name pos path))
+  (relint--string-complaints (xr-skip-set-lint skip-set)
+                             skip-set name pos path))
 
 (defun relint--check-re-string (re name pos path)
-  (relint--check-string (xr-lint re nil relint-xr-checks) re name pos path))
+  (relint--string-complaints (xr-lint re nil relint-xr-checks)
+                             re name pos path))
   
 (defun relint--check-file-re-string (re name pos path)
-  (relint--check-string (xr-lint re 'file relint-xr-checks) re name pos path))
+  (relint--string-complaints (xr-lint re 'file relint-xr-checks)
+                             re name pos path))
   
-(defun relint--check-syntax-string (syn name pos path)
-  (relint--check-string (relint--syntax-string-lint syn) syn name pos path))
+(defun relint--check-syntax-string (syntax name pos path)
+  (relint--string-complaints (relint--syntax-string-lint syntax)
+                             syntax name pos path))
 
 (defconst relint--syntax-codes
   '((?-  . whitespace)
@@ -380,7 +406,8 @@ in case it occupies more than one position in the buffer."
     (?!  . comment-delimiter)))
 
 (defun relint--syntax-string-lint (syntax)
-  "Check the syntax-skip string SYNTAX.  Return list of complaints."
+  "Check the syntax-skip string SYNTAX.
+Return list of complaint groups, each a list of (BEG END MESSAGE SEVERITY)."
   (let ((errs nil)
         (start (if (string-prefix-p "^" syntax) 1 0)))
     (when (member syntax '("" "^"))
@@ -2584,9 +2611,10 @@ The keys are sorted numerically, in ascending order.")
       (cons
        (relint--sort-with-key
         ;; Sort by error position if available, expression position otherwise.
-        (lambda (c)
-          (let ((expr-pos (aref c 1))
-                (error-pos (aref c 2)))
+        (lambda (g)
+          (let* ((c (car g))
+                 (expr-pos (aref c 1))
+                 (error-pos (aref c 2)))
             (or error-pos expr-pos)))
         complaints)
        relint--suppression-count))))
@@ -2741,23 +2769,24 @@ The buffer must be in emacs-lisp-mode."
 ;;;###autoload
 (defun relint-buffer (buffer)
   "Scan BUFFER for regexp errors. Return list of diagnostics.
-Each element in the returned list has the form
+Each element in the returned list is a vector having the form
 
-  (MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY)
+  [MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
 
 where
 
   MESSAGE           the message string
-  EXPR-POS          the location of the flawed expression or nil
-  BEG-POS, END-POS  exact bounds in the buffer of the error, or nil
+  EXPR-POS          the position of the flawed expression or nil
+  BEG-POS, END-POS  exact bounds in the buffer (inclusive), or nil
   STRING            nil or a string to which the message pertains
-  BEG-IDX, END-IDX  bounds in STRING or nil
+  BEG-IDX, END-IDX  bounds in STRING (inclusive) or nil
   SEVERITY          `error', `warning' or `info'
 
 The intent is that BEG-POS..END-POS is the buffer range that
 corresponds to STRING at BEG-IDX..END-IDX, if such a location can be
 determined."
-  (car (relint--scan-buffer buffer)))
+  (let ((groups (car (relint--scan-buffer buffer))))
+    (apply #'append groups)))           ; flatten groups
 
 (defun relint-batch ()
   "Scan elisp source files for regexp-related errors.

@@ -7,9 +7,15 @@
 5.elisp:21:4: In call to looking-at: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
+5.elisp:21:4: info: Previous occurrence here (pos 1)
+  "[AA]"
+   .^
 5.elisp:32:17: In call to looking-at: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
+5.elisp:32:17: info: Previous occurrence here (pos 1)
+  "[BB]"
+   .^
 5.elisp:37:17: In call to looking-at: Unescaped literal `+' (pos 0)
   "+a"
    ^
@@ -19,12 +25,21 @@
 5.elisp:46:15: In call to looking-at: Duplicated `C' inside character alternative (pos 2)
   "[CC]"
    ..^
+5.elisp:46:15: info: Previous occurrence here (pos 1)
+  "[CC]"
+   .^
 5.elisp:51:17: In call to looking-at: Duplicated `D' inside character alternative (pos 2)
   "[DD]"
    ..^
+5.elisp:51:17: info: Previous occurrence here (pos 1)
+  "[DD]"
+   .^
 5.elisp:59:15: In call to looking-at: Duplicated `E' inside character alternative (pos 2)
   "[EE]"
    ..^
+5.elisp:59:15: info: Previous occurrence here (pos 1)
+  "[EE]"
+   .^
 5.elisp:62:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*b"
    ^
@@ -34,6 +49,12 @@
 5.elisp:72:15: In call to looking-at: Duplicated `U' inside character alternative (pos 2)
   "[UU]"
    ..^
+5.elisp:72:15: info: Previous occurrence here (pos 1)
+  "[UU]"
+   .^
 5.elisp:75:15: In call to looking-at: Duplicated `V' inside character alternative (pos 2)
   "[VV]"
    ..^
+5.elisp:75:15: info: Previous occurrence here (pos 1)
+  "[VV]"
+   .^

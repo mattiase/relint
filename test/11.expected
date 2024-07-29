@@ -28,9 +28,15 @@
 11.elisp:16:4: In rx `regexp' form: Duplicated `1' inside character alternative (pos 2)
   "[11]"
    ..^
+11.elisp:16:4: info: Previous occurrence here (pos 1)
+  "[11]"
+   .^
 11.elisp:16:4: In rx `regex' form: Duplicated `2' inside character alternative (pos 2)
   "[22]"
    ..^
+11.elisp:16:4: info: Previous occurrence here (pos 1)
+  "[22]"
+   .^
 11.elisp:16:4: Duplicated character `3' (pos 1)
   "33"
    .^

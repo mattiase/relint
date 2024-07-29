@@ -24,6 +24,9 @@
 13.elisp:18:30-31: In call to re-search-forward: Repetition of repetition (pos 4)
   "$.x++"
    ....^
+13.elisp:18:27-29: info: This is the inner expression (pos 2..3)
+  "$.x++"
+   ..^^
 13.elisp:18:30-31: Ineffective string escape `\+'
 13.elisp:19:16-17: Ineffective string escape `\q'
 13.elisp:22:16-17: Ineffective string escape `\8'

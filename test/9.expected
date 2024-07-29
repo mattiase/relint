@@ -1,39 +1,75 @@
 9.elisp:6:33-33: In page-delimiter: Duplicated `a' inside character alternative (pos 2)
   "[aa]"
    ..^
+9.elisp:6:32-32: info: Previous occurrence here (pos 1)
+  "[aa]"
+   .^
 9.elisp:7:37-37: In paragraph-separate: Duplicated `b' inside character alternative (pos 2)
   "[bb]"
    ..^
+9.elisp:7:36-36: info: Previous occurrence here (pos 1)
+  "[bb]"
+   .^
 9.elisp:8:34-34: In paragraph-start: Duplicated `c' inside character alternative (pos 2)
   "[cc]"
    ..^
+9.elisp:8:33-33: info: Previous occurrence here (pos 1)
+  "[cc]"
+   .^
 9.elisp:9:31-31: In sentence-end: Duplicated `d' inside character alternative (pos 2)
   "[dd]"
    ..^
+9.elisp:9:30-30: info: Previous occurrence here (pos 1)
+  "[dd]"
+   .^
 9.elisp:10:37-37: In comment-start-skip: Duplicated `e' inside character alternative (pos 2)
   "[ee]"
    ..^
+9.elisp:10:36-36: info: Previous occurrence here (pos 1)
+  "[ee]"
+   .^
 9.elisp:11:35-35: In comment-end-skip: Duplicated `f' inside character alternative (pos 2)
   "[ff]"
    ..^
+9.elisp:11:34-34: info: Previous occurrence here (pos 1)
+  "[ff]"
+   .^
 9.elisp:13:25-25: In sentence-end: Duplicated `g' inside character alternative (pos 2)
   "[gg]"
    ..^
+9.elisp:13:24-24: info: Previous occurrence here (pos 1)
+  "[gg]"
+   .^
 9.elisp:14:50-50: In paragraph-start: Duplicated `h' inside character alternative (pos 2)
   "[hh]"
    ..^
+9.elisp:14:49-49: info: Previous occurrence here (pos 1)
+  "[hh]"
+   .^
 9.elisp:16:32-32: In paragraph-separate: Duplicated `i' inside character alternative (pos 2)
   "[ii]"
    ..^
+9.elisp:16:31-31: info: Previous occurrence here (pos 1)
+  "[ii]"
+   .^
 9.elisp:17:28-28: In page-delimiter: Duplicated `j' inside character alternative (pos 2)
   "[jj]"
    ..^
+9.elisp:17:27-27: info: Previous occurrence here (pos 1)
+  "[jj]"
+   .^
 9.elisp:18:35-35: In comment-start-skip: Duplicated `k' inside character alternative (pos 2)
   "[kk]"
    ..^
+9.elisp:18:34-34: info: Previous occurrence here (pos 1)
+  "[kk]"
+   .^
 9.elisp:19:33-33: In comment-end-skip: Duplicated `l' inside character alternative (pos 2)
   "[ll]"
    ..^
+9.elisp:19:32-32: info: Previous occurrence here (pos 1)
+  "[ll]"
+   .^
 9.elisp:22:39-39: In treesit-sentence-type-regexp: Unescaped literal `+' (pos 0)
   "+0"
    ^
@@ -55,18 +91,33 @@
 9.elisp:44:40-40: In font-lock-keywords (tag): Duplicated `m' inside character alternative (pos 2)
   "[mm]"
    ..^
+9.elisp:44:39-39: info: Previous occurrence here (pos 1)
+  "[mm]"
+   .^
 9.elisp:45:34-34: In font-lock-keywords (tag): Duplicated `n' inside character alternative (pos 2)
   "[nn]"
    ..^
+9.elisp:45:33-33: info: Previous occurrence here (pos 1)
+  "[nn]"
+   .^
 9.elisp:46:56-56: In font-lock-keywords (tag): Duplicated `o' inside character alternative (pos 2)
   "[oo]"
    ..^
+9.elisp:46:55-55: info: Previous occurrence here (pos 1)
+  "[oo]"
+   .^
 9.elisp:52:9-9: In my-font-lock-keywords-2 (beta): Duplicated `q' inside character alternative (pos 2)
   "[qq]"
    ..^
+9.elisp:52:8-8: info: Previous occurrence here (pos 1)
+  "[qq]"
+   .^
 9.elisp:56:9: In font-lock-defaults (alpha): Duplicated `p' inside character alternative (pos 2)
   "[pp]"
    ..^
+9.elisp:56:9: info: Previous occurrence here (pos 1)
+  "[pp]"
+   .^
 9.elisp:62:23-23: In treesit-simple-indent-rules (a): Unescaped literal `+' (pos 0)
   "+e+"
    ^

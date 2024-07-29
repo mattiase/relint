@@ -13,9 +13,15 @@
 4.elisp:17:15: In call to looking-at: Duplicated `A' inside character alternative (pos 2)
   "[AA]"
    ..^
+4.elisp:17:15: info: Previous occurrence here (pos 1)
+  "[AA]"
+   .^
 4.elisp:18:15: In call to looking-at: Duplicated `B' inside character alternative (pos 2)
   "[BB]"
    ..^
+4.elisp:18:15: info: Previous occurrence here (pos 1)
+  "[BB]"
+   .^
 4.elisp:19:15: In call to looking-at: Unescaped literal `+' (pos 0)
   "+b"
    ^
@@ -37,15 +43,24 @@
 4.elisp:44:15: In call to looking-at: Repetition of repetition (pos 2)
   "b++"
    ..^
+4.elisp:44:15: info: This is the inner expression (pos 0..1)
+  "b++"
+   ^^
 4.elisp:45:15: In call to looking-at: Repetition of repetition (pos 2)
   "c++"
    ..^
+4.elisp:45:15: info: This is the inner expression (pos 0..1)
+  "c++"
+   ^^
 4.elisp:46:15: In call to looking-at: Unescaped literal `$' (pos 1)
   "a$b"
    .^
 4.elisp:47:15: In call to looking-at: Repetition of repetition (pos 2)
   "d++"
    ..^
+4.elisp:47:15: info: This is the inner expression (pos 0..1)
+  "d++"
+   ^^
 4.elisp:48:15: In call to looking-at: Unescaped literal `*' (pos 0)
   "*"
    ^
