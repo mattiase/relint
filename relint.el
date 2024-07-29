@@ -273,14 +273,14 @@ in case it occupies more than one position in the buffer."
 (defun relint--warn-at (beg-pos end-pos message)
   (relint--report message nil beg-pos end-pos nil nil nil 'warning))
 
-(defun relint--warn (start-pos path message &optional str str-idx)
-  (relint--report-at-path start-pos path message str str-idx str-idx 'warning))
+(defun relint--warn (start-pos path message &optional str str-beg str-end)
+  (relint--report-at-path start-pos path message str str-beg str-end 'warning))
 
 (defun relint--err-at (pos message)
   (relint--report message nil pos nil nil nil nil 'error))
 
 (defun relint--err (start-pos path message &optional str str-idx)
-  (relint--report-at-path start-pos path message str str-idx str-idx 'error))
+  (relint--report-at-path start-pos path message str str-idx nil 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -1699,20 +1699,20 @@ than just to a surrounding or producing expression."
                           pos (if exact-path (cons i path) path)
                           (format-message "Suspect range `%s'"
                                           (relint--pretty-range from to))
-                          s j))
+                          s j (+ j 2)))
                         ((= to from)
                          (relint--warn
                           pos (if exact-path (cons i path) path)
                           (format-message
                            "Single-character range `%s'"
                            (relint--escape-string (format "%c-%c" from to) nil))
-                          s j))
+                          s j j))
                         ((= to (1+ from))
                          (relint--warn
                           pos (if exact-path (cons i path) path)
                           (format-message "Two-character range `%s'"
                                           (relint--pretty-range from to))
-                          s j)))
+                          s j (+ j 2))))
                        ;; Take care to split ASCII-raw ranges; they do not
                        ;; include anything in-between.
                        (let* ((split (and (<= from #x7f) (>= to #x3fff80)))
@@ -1730,7 +1730,7 @@ than just to a surrounding or producing expression."
                                             (relint--pretty-range from to)
                                             (relint--pretty-range
                                              (car overlap) (cdr overlap)))
-                            s j))
+                            s j (+ j 2)))
                          (if split
                              (progn
                                (push (cons from #x7f) ranges)
@@ -1744,7 +1744,7 @@ than just to a surrounding or producing expression."
                      (relint--warn
                       pos (if exact-path (cons i path) path)
                       (format-message "Literal `-' not first or last")
-                      s j))
+                      s j j))
                    (let ((overlap
                           (relint--intersecting-range from from ranges)))
                      (when overlap
@@ -1757,7 +1757,7 @@ than just to a surrounding or producing expression."
                            "Character `%s' included in range `%s'"
                            (relint--pretty-range from from)
                            (relint--pretty-range (car overlap) (cdr overlap))))
-                        s j)))
+                        s j j)))
                    (push (cons from from) ranges)
                    (setq j (1+ j)))))))
 

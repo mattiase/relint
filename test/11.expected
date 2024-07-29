@@ -5,9 +5,9 @@
 11.elisp:8:30-30: Single-character range `c-c' (pos 4)
   "0-9ac-ceg-h3"
    ....^
-11.elisp:8:34-34: Two-character range `g-h' (pos 8)
+11.elisp:8:34-36: Two-character range `g-h' (pos 8..10)
   "0-9ac-ceg-h3"
-   ........^
+   ........^^^
 11.elisp:8:37-37: Character `3' included in range `0-9' (pos 11)
   "0-9ac-ceg-h3"
    ...........^
@@ -16,12 +16,12 @@
   "!s"
    .^
 11.elisp:10:45: Duplicated class `space'
-11.elisp:11:21-21: Suspect range `)-+' (pos 4)
+11.elisp:11:21-23: Suspect range `)-+' (pos 4..6)
   "0-9()-+"
-   ....^
-11.elisp:12:20-20: Suspect range `+-.' (pos 3)
+   ....^^^
+11.elisp:12:20-22: Suspect range `+-.' (pos 3..5)
   "0-9+-."
-   ...^
+   ...^^^
 11.elisp:15:20-20: Literal `-' not first or last (pos 3)
   "A-F-K-T"
    ...^
@@ -55,12 +55,12 @@
   "\240"
    ^^^^
 11.elisp:33:18: Character `m' included in range `a-z'
-11.elisp:34:19-22: Range `\000-\377' overlaps previous `a-f' (pos 0)
+11.elisp:34:19-27: Range `\000-\377' overlaps previous `a-f' (pos 0..2)
   "\000-\377"
-   ^^^^
-11.elisp:35:25-28: Range `\000-\377' overlaps previous `\240-\277' (pos 0)
+   ^^^^^^^^^
+11.elisp:35:25-33: Range `\000-\377' overlaps previous `\240-\277' (pos 0..2)
   "\000-\377"
-   ^^^^
+   ^^^^^^^^^
 11.elisp:37:17: Duplicated rx form in or-pattern: ?A
 11.elisp:37:20: Duplicated rx form in or-pattern: "def"
 11.elisp:38:10: Duplicated rx form in or-pattern: "abc"

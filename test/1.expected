@@ -184,9 +184,9 @@
 1.elisp:117:54-54: In my-ts-mode-font-lock-rules: Duplicated `6' inside character alternative (pos 2)
   "[66]"
    ..^
-1.elisp:121:16-16: Suspect range `+-/' (pos 0)
+1.elisp:121:16-18: Suspect range `+-/' (pos 0..2)
   "+-/"
-   ^
-1.elisp:124:16-16: Suspect range `+-/' (pos 0)
+   ^^^
+1.elisp:124:16-18: Suspect range `+-/' (pos 0..2)
   "+-/"
-   ^
+   ^^^
