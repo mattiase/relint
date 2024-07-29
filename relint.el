@@ -205,10 +205,17 @@ in case it occupies more than one position in the buffer."
    (goto-char pos)
    (1+ (current-column))))
 
-(cl-defun relint--output-report (error-buffer file
-                                 (message expr-pos beg-pos end-pos
-                                  str beg-idx end-idx severity))
-  (let* ((beg (or beg-pos expr-pos))
+(defun relint--output-complaint (error-buffer file complaint)
+  ;; FIXME: Use accessors or destructuring
+  (let* ((message (aref complaint 0))
+         (expr-pos (aref complaint 1))
+         (beg-pos (aref complaint 2))
+         (end-pos (aref complaint 3))
+         (str (aref complaint 4))
+         (beg-idx (aref complaint 5))
+         (end-idx (aref complaint 6))
+         (severity (aref complaint 7))
+         (beg (or beg-pos expr-pos))
          (end end-pos)
          (beg-line (line-number-at-pos beg t))
          (end-line (cond ((eq beg end) beg-line)
@@ -239,26 +246,28 @@ in case it occupies more than one position in the buffer."
 (defun relint--output-complaints (buffer file complaints error-buffer)
   (with-current-buffer buffer
     (dolist (complaint complaints)
-      (relint--output-report error-buffer file complaint))))
+      (relint--output-complaint error-buffer file complaint))))
 
 (defvar relint--suppression-count)
 (defvar relint--complaints
-  ;; list of (MESSAGE EXPR-POS BEG-POS END-POS STR BEG-IDX END-IDX SEVERITY)
-  ;; MESSAGE  string of message
-  ;; EXPR-POS position of expression or nil
-  ;; BEG-POS  exact first position of error or nil
-  ;; END-POS  exact last position of error or nil
-  ;; STR      string that is the subject of message
-  ;; BEG-IDX  starting index into STR or nil
-  ;; END-IDX  ending index into STR or nil
-  ;; SEVERITY `error' or `warning'
+  ;; list of
+  ;;   [MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
+  ;; with fields:
+  ;;   MESSAGE   string of message
+  ;;   EXPR-POS  position of expression or nil
+  ;;   BEG-POS   exact first position of error or nil
+  ;;   END-POS   exact last position of error or nil
+  ;;   STRING    string inside which the complaint occurs or nil
+  ;;   BEG-IDX   starting index into STRING or nil
+  ;;   END-IDX   ending index into STRING or nil
+  ;;   SEVERITY  `error', `warning' or `info'
   )
 
 (defun relint--report (message expr-pos beg-pos end-pos
                        str beg-idx end-idx severity)
   (if (relint--suppression (or expr-pos beg-pos) message)
       (setq relint--suppression-count (1+ relint--suppression-count))
-    (push (list message expr-pos beg-pos end-pos str beg-idx end-idx severity)
+    (push (vector message expr-pos beg-pos end-pos str beg-idx end-idx severity)
           relint--complaints)))
 
 (defun relint--report-at-path (start-pos path msg str beg-idx end-idx severity)
@@ -2587,9 +2596,9 @@ The keys are sorted numerically, in ascending order.")
       (cons
        (relint--sort-with-key
         ;; Sort by error position if available, expression position otherwise.
-        (lambda (x)
-          (let ((expr-pos (nth 1 x))
-                (error-pos (nth 2 x)))
+        (lambda (c)
+          (let ((expr-pos (aref c 1))
+                (error-pos (aref c 2)))
             (or error-pos expr-pos)))
         complaints)
        relint--suppression-count))))
@@ -2750,12 +2759,12 @@ Each element in the returned list has the form
 
 where
 
-  MESSAGE is the message string
-  EXPR-POS the location of the flawed expression or nil
-  BEG-POS and END-POS the exact boundaries of the error or nil if unavailable
-  STRING is nil or a string to which the message pertains
-  BEG-IDX and END-IDX are bounds in STRING or nil,
-  and SEVERITY is `error' or `warning'.
+  MESSAGE           the message string
+  EXPR-POS          the location of the flawed expression or nil
+  BEG-POS, END-POS  exact bounds in the buffer of the error, or nil
+  STRING            nil or a string to which the message pertains
+  BEG-IDX, END-IDX  bounds in STRING or nil
+  SEVERITY          `error', `warning' or `info'
 
 The intent is that BEG-POS..END-POS is the buffer range that
 corresponds to STRING at BEG-IDX..END-IDX, if such a location can be

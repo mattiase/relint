@@ -135,16 +135,17 @@ and a path."
             (insert "(looking-at (make-string 2 ?^))\n")
             (insert "(looking-at (concat \"ab\" \"cdef\" \"[gg]\"))\n")
             (insert "(string-match \"[xy\" s)\n"))
-          (should (equal
-                   (relint-buffer buf)
-                   '(("In call to looking-at: Repetition of repetition"
-                      20 28 28 "broken**regexp" 7 7 warning)
-                     ("In call to looking-at: Unescaped literal `^'"
-                      50 nil nil "^^" 1 1 warning)
-                     ("In call to looking-at: Duplicated `g' inside character alternative"
-                      82 105 105 "abcdef[gg]" 8 8 warning)
-                     ("In call to string-match: Unterminated character alternative"
-                      125 126 128 "[xy" 0 2 error)))))
+          (should
+           (equal
+            (relint-buffer buf)
+            '(["In call to looking-at: Repetition of repetition"
+               20 28 28 "broken**regexp" 7 7 warning]
+              ["In call to looking-at: Unescaped literal `^'"
+               50 nil nil "^^" 1 1 warning]
+              ["In call to looking-at: Duplicated `g' inside character alternative"
+               82 105 105 "abcdef[gg]" 8 8 warning]
+              ["In call to string-match: Unterminated character alternative"
+               125 126 128 "[xy" 0 2 error]))))
       (kill-buffer buf))))
 
 (ert-deftest relint-buffer-huge ()
@@ -161,9 +162,9 @@ and a path."
              (insert "(message \"goodbye\\! everyone!\")\n")
              (let ((text-quoting-style 'grave))
                (relint-buffer (current-buffer))))
-           '(("Ineffective string escape `\\?'" nil 16 17 nil nil nil warning)
-             ("Ineffective string escape `\\!'" nil 1288960 1288961 nil nil nil
-              warning)))))
+           '(["Ineffective string escape `\\?'" nil 16 17 nil nil nil warning]
+             ["Ineffective string escape `\\!'" nil 1288960 1288961 nil nil nil
+              warning]))))
 
 (ert-deftest relint-bad-hex-escape ()
   ;; Test the bad \x character escape warning. We do this separately because
@@ -182,10 +183,10 @@ and a path."
             (should (equal
                      ;; Ignore 'invalid escape char syntax' error.
                      (remove (assoc err diags) diags)
-                     '(("Character escape `\\x' not followed by hex digit"
-                        nil 15 16  nil nil nil warning)
-                       ("Character escape `\\x' not followed by hex digit"
-                        nil 19 20 nil nil nil warning)
+                     '(["Character escape `\\x' not followed by hex digit"
+                        nil 15 16  nil nil nil warning]
+                       ["Character escape `\\x' not followed by hex digit"
+                        nil 19 20 nil nil nil warning]
                        )))))
       (kill-buffer buf))))
 
@@ -204,6 +205,6 @@ and a path."
             "In call to looking-at: Possibly mistyped `:?' at start of group"))
       (should (equal warnings
                      (and checks
-                          `((,msg 13 17 18 "\\(:?xy\\)+" 2 3 warning))))))))
+                          `([,msg 13 17 18 "\\(:?xy\\)+" 2 3 warning])))))))
 
 (provide 'relint-test)
