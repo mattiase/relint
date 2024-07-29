@@ -288,9 +288,6 @@ in case it occupies more than one position in the buffer."
 (defun relint--err-at (pos message)
   (relint--report message nil pos nil nil nil nil 'error))
 
-(defun relint--err (start-pos path message &optional str str-idx)
-  (relint--report-at-path start-pos path message str str-idx nil 'error))
-
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
    ;; Use pair notation for raw chars; "\200-\377" is buggy in Emacs 26.
@@ -332,45 +329,36 @@ in case it occupies more than one position in the buffer."
     ((pred stringp) name)
     ((pred symbolp) (symbol-name name))))
 
-(defun relint--check-string (string checker name pos path)
-  (let ((complaints
-         (condition-case err
-             (funcall checker string)
-           (error
-            (relint--err pos path
-                         (format "In %s: %s"
-                                 (relint--expand-name name) (cadr err))
-                         string nil)
-            nil))))
-    ;; FIXME: Compatibility hack: if given a list-of-lists, flatten it.
-    ;; We should move to the list-of-lists repr for our purposes too,
-    ;; to preserve diag clusters when sorting.
-    (when (consp (car complaints))
-      (setq complaints (mapcar #'car complaints)) ;HACK!
-      ;;(setq complaints (apply #'append complaints))
-      )
-    (dolist (c complaints)
-      (let* ((beg (nth 0 c))
-             (end (nth 1 c))
-             (msg (nth 2 c))
-             (severity (nth 3 c)))
-        (relint--report-at-path
-         pos path (format "In %s: %s" (relint--expand-name name) msg)
-         string beg end severity)))))
+(defun relint--message-with-name (msg name)
+  (format "In %s: %s" (relint--expand-name name) msg))
 
-(defun relint--check-skip-set (skip-set-string name pos path)
-  (relint--check-string skip-set-string #'xr-skip-set-lint name pos path))
+(defun relint--check-string (complaints string name pos path)
+  ;; FIXME: Compatibility hack: if given a list-of-lists, flatten it.
+  ;; We should move to the list-of-lists repr for our purposes too,
+  ;; to preserve diag clusters when sorting.
+  (when (consp (car complaints))
+    (setq complaints (mapcar #'car complaints)) ;HACK!
+    ;;(setq complaints (apply #'append complaints))
+    )
+  (dolist (c complaints)
+    (let* ((beg (nth 0 c))
+           (end (nth 1 c))
+           (msg (nth 2 c))
+           (severity (nth 3 c)))
+      (relint--report-at-path pos path (relint--message-with-name msg name)
+                              string beg end severity))))
+
+(defun relint--check-skip-set (skip-set name pos path)
+  (relint--check-string (xr-skip-set-lint skip-set) skip-set name pos path))
 
 (defun relint--check-re-string (re name pos path)
-  (relint--check-string re (lambda (x) (xr-lint x nil relint-xr-checks))
-                        name pos path))
+  (relint--check-string (xr-lint re nil relint-xr-checks) re name pos path))
   
 (defun relint--check-file-re-string (re name pos path)
-  (relint--check-string re (lambda (x) (xr-lint x 'file relint-xr-checks))
-                        name pos path))
+  (relint--check-string (xr-lint re 'file relint-xr-checks) re name pos path))
   
-(defun relint--check-syntax-string (syntax name pos path)
-  (relint--check-string syntax #'relint--syntax-string-lint name pos path))
+(defun relint--check-syntax-string (syn name pos path)
+  (relint--check-string (relint--syntax-string-lint syn) syn name pos path))
 
 (defconst relint--syntax-codes
   '((?-  . whitespace)
