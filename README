@@ -64,15 +64,30 @@ skip-syntax-forward and skip-syntax-backward.
   it will be installed automatically.
 
 
-* Configuration
+* User options
 
-  No configuration is required.
+  - variable 'relint-xr-checks'
 
-  There is a single user option, 'relint-xr-checks'.
-  If set to 'all', it enables more thorough checks that detect more
-  errors and performance problems but may also produce more false
-  warnings. The default value is 'nil', limiting warnings to ones that
-  are likely to be accurate.
+      If set to 'all', it enables checks that detect more errors and
+      performance problems but may also produce more false warnings.
+      The default value is 'nil' which limits warnings to ones that
+      are likely to be accurate.
+
+  - variable 'relint-batch-highlight'
+
+      This variable controls the diagnostics output of 'relint-batch'.
+      If set to a string pair (BEGIN . END), these strings will be
+      used to highlight the part of a regexp that a message is talking
+      about. The default value makes that part appear in reverse video
+      in a (VT100-compatible) terminal.
+      The value 'caret' uses ASCII symbols to mark the interesting part
+      instead.
+      The value 'nil' disables highlighting entirely.
+
+  - face 'relint-buffer-highlight'
+
+      This is the face used to highlight text warned about for a
+      message appearing in the '*relint*' buffer.
 
 
 * What the diagnostics mean

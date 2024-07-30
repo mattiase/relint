@@ -43,6 +43,39 @@ false positives, or `all', enabling all checks."
   :type '(choice (const :tag "Standard checks only" nil)
                  (const :tag "All checks" all)))
 
+;; FIXME: should this be a defcustom, defface, or both?
+(defface relint-buffer-highlight
+  '((t (:inherit highlight)))
+  "Face for highlight the string part warned about in the `*relint*' buffer."
+  :group 'relint)
+
+;; FIXME: default to underline or reverse?
+(defcustom relint-batch-highlight '("\e[7m" . "\e[m")
+  "How to emphasise part of a string warned about in batch output.
+The value is one of the following:
+
+  A pair of strings for turning on and off highlighting in
+  the terminal; these are typically escape sequences.
+
+  `caret', which adds an ASCII caret on the line under the string.
+
+  `nil', which disables highlighting.
+
+The default value produces reverse video in a VT100-compatible terminal.
+
+In interactive mode, relint uses the `relint-buffer-highlight' face instead."
+  :group 'relint
+  :type '(choice
+          (const :tag "Terminal reverse" ("\e[7m" . "\e[m"))
+          (const :tag "Terminal underline" ("\e[4m" . "\e[m"))
+          (cons :tag "Escape sequences"
+                (string :tag "Sequence for turning highlighting on" "\e[7m")
+                (string :tag "Sequence for turning highlighting off" "\e[m"))
+          (const :tag "ASCII caret" caret)
+          (const :tag "Highlighting disabled" nil)))
+
+(defvar relint--force-batch-output nil)  ; for testing only
+
 (defun relint--get-error-buffer ()
   "Buffer to which errors are printed, or nil if noninteractive."
   (and (not noninteractive)
@@ -229,7 +262,34 @@ in case it occupies more than one position in the buffer."
                    (end-col
                     (format "%d:%d-%d" beg-line beg-col end-col))
                    (t
-                    (format "%d:%d" beg-line beg-col)))))
+                    (format "%d:%d" beg-line beg-col))))
+         (quoted-str (and str (relint--quote-string str)))
+         (caret-str nil))
+
+    (when beg-idx
+      (let* ((bounds (relint--caret-bounds str beg-idx end-idx))
+             ;; Indices into quoted-str, which includes double quotes:
+             (beg-qs (+ (car bounds) 1))
+             (end-qs (+ (cdr bounds) 2)))  ; exclusive
+        (cond ((and error-buffer (not relint--force-batch-output))
+               ;; Output to buffer: apply highlight face to part of string.
+               (put-text-property
+                beg-qs end-qs 'font-lock-face 'relint-buffer-highlight
+                quoted-str))
+              ((eq relint-batch-highlight 'caret)
+               (let* ((col-from (car bounds))
+                      (col-to (cdr bounds)))
+                 (setq caret-str (concat
+                                  (make-string col-from ?.)
+                                  (make-string (- col-to col-from -1) ?^)))))
+              ((consp relint-batch-highlight)
+               (setq quoted-str
+                     (concat (substring quoted-str 0 beg-qs)
+                             (car relint-batch-highlight)
+                             (substring quoted-str beg-qs end-qs)
+                             (cdr relint-batch-highlight)
+                             (substring quoted-str end-qs)))))))
+
     (relint--output-message
      error-buffer
      (concat
@@ -240,9 +300,8 @@ in case it occupies more than one position in the buffer."
       (cond ((and beg-idx end-idx (< beg-idx end-idx))
              (format " (pos %d..%d)" beg-idx end-idx))
             (beg-idx (format " (pos %d)" beg-idx)))
-      (and str     (format "\n  %s" (relint--quote-string str)))
-      (and beg-idx (format "\n   %s" (relint--caret-string
-                                      str beg-idx end-idx)))))))
+      (and quoted-str (format "\n  %s" quoted-str))
+      (and caret-str  (format "\n   %s" caret-str))))))
   
 (defun relint--output-complaints (buffer file complaints error-buffer)
   (with-current-buffer buffer
@@ -329,7 +388,7 @@ in case it occupies more than one position in the buffer."
 (defun relint--quote-string (str)
   (concat "\"" (relint--escape-string str t) "\""))
 
-(defun relint--caret-string (string beg end)
+(defun relint--caret-bounds (string beg end)
   (let* ((beg-col
           (length (relint--escape-string (substring string 0 beg) t)))
          (end-col
@@ -338,8 +397,7 @@ in case it occupies more than one position in the buffer."
               (1- (length (relint--escape-string
                            (substring string 0 (1+ end)) t)))
             beg-col)))
-    (concat (make-string beg-col ?.)
-            (make-string (- end-col beg-col -1) ?^))))
+    (cons beg-col end-col)))
 
 (defun relint--expand-name (name)
   (pcase-exhaustive name
@@ -2794,7 +2852,9 @@ Call this function in batch mode with files and directories as
 command-line arguments.  Files are scanned; directories are
 searched recursively for *.el files to scan.
 When done, Emacs terminates with a nonzero status if anything worth
-complaining about was found, zero otherwise."
+complaining about was found, zero otherwise.
+
+The output appearance is controlled by the variable `relint-batch-highlight'."
   (unless noninteractive
     (error "`relint-batch' is only for use with -batch"))
   (let* ((err-supp

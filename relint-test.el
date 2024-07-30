@@ -98,7 +98,9 @@ and a path."
   (with-temp-buffer
     ;; The reference files (*.expected) are kept in the `grave' style,
     ;; to make the test independent of `text-quoting-style'.
-    (let ((text-quoting-style 'grave))
+    (let ((text-quoting-style 'grave)
+          (relint--force-batch-output t)
+          (relint-batch-highlight 'caret))
       (relint--buffer (find-file-noselect file t) (current-buffer) t))
     (buffer-string)))
 
@@ -209,5 +211,38 @@ and a path."
       (should (equal warnings
                      (and checks
                           `([,msg 13 17 18 "\\(:?xy\\)+" 2 3 warning])))))))
+
+(defun relint-test--batch (prog)
+  (with-temp-buffer
+    (let ((errbuf (current-buffer)))
+      (let ((progbuf (get-buffer-create "relint--test.el")))
+        (unwind-protect
+            (with-current-buffer progbuf
+              (insert prog)
+              (emacs-lisp-mode)
+              (let ((text-quoting-style 'grave)
+                    (relint--force-batch-output t))
+                (relint--buffer (current-buffer) errbuf t)))
+          (kill-buffer progbuf)))
+      (buffer-string))))
+
+(ert-deftest relint-batch-highlight ()
+  (let ((prog "(looking-at \"[pqrf-az]\")\n")
+        (msg (concat "relint--test.el:1:18-20: "
+                     "In call to looking-at: "
+                     "Reversed range `f-a' matches nothing (pos 4..6)\n")))
+    (let ((relint-batch-highlight nil))
+      (should (equal (relint-test--batch prog)
+                     (concat msg
+                             "  \"[pqrf-az]\"\n"))))
+    (let ((relint-batch-highlight 'caret))
+      (should (equal (relint-test--batch prog)
+                     (concat msg
+                             "  \"[pqrf-az]\"\n"
+                             "   ....^^^\n"))))
+    (let ((relint-batch-highlight '("{" . "}")))
+      (should (equal (relint-test--batch prog)
+                     (concat msg
+                             "  \"[pqr{f-a}z]\"\n"))))))
 
 (provide 'relint-test)
