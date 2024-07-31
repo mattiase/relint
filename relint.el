@@ -76,6 +76,24 @@ In interactive mode, relint uses the `relint-buffer-highlight' face instead."
 
 (defvar relint--force-batch-output nil)  ; for testing only
 
+(cl-defstruct (relint-diag
+               (:constructor nil)
+               (:constructor
+                relint--make-diag (message expr-pos beg-pos end-pos string
+                                   beg-idx end-idx severity))
+               (:copier nil)
+               (:type vector)
+               (:conc-name relint-diag--))
+  message    ; string of message
+  expr-pos   ; position of expression or nil
+  beg-pos    ; exact first position of error or nil
+  end-pos    ; exact last position of error or nil
+  string     ; string inside which the complaint occurs or nil
+  beg-idx    ; starting index into `string' or nil
+  end-idx    ; ending index into `string' or nil
+  severity   ; `error', `warning' or `info'
+  )
+
 (defun relint--get-error-buffer ()
   "Buffer to which errors are printed, or nil if noninteractive."
   (and (not noninteractive)
@@ -238,18 +256,14 @@ in case it occupies more than one position in the buffer."
    (goto-char pos)
    (1+ (current-column))))
 
-(defun relint--output-complaint (error-buffer file complaint)
-  ;; FIXME: Use accessors or destructuring
-  (let* ((message (aref complaint 0))
-         (expr-pos (aref complaint 1))
-         (beg-pos (aref complaint 2))
-         (end-pos (aref complaint 3))
-         (str (aref complaint 4))
-         (beg-idx (aref complaint 5))
-         (end-idx (aref complaint 6))
-         (severity (aref complaint 7))
-         (beg (or beg-pos expr-pos))
-         (end end-pos)
+(defun relint--output-complaint (error-buffer file diag)
+  (let* ((str (relint-diag--string diag))
+         (beg-idx (relint-diag--beg-idx diag))
+         (end-idx (relint-diag--end-idx diag))
+         (severity (relint-diag--severity diag))
+         (beg (or (relint-diag--beg-pos diag)
+                  (relint-diag--expr-pos diag)))
+         (end (relint-diag--end-pos diag))
          (beg-line (line-number-at-pos beg t))
          (end-line (cond ((eq beg end) beg-line)
                          (end (line-number-at-pos end t))))
@@ -296,7 +310,7 @@ in case it occupies more than one position in the buffer."
       (format "%s:%s: " file loc-str)
       (cond ((eq severity 'error) "error: ")
             ((eq severity 'info) "info: "))
-      message
+      (relint-diag--message diag)
       (cond ((and beg-idx end-idx (< beg-idx end-idx))
              (format " (pos %d..%d)" beg-idx end-idx))
             (beg-idx (format " (pos %d)" beg-idx)))
@@ -311,31 +325,16 @@ in case it occupies more than one position in the buffer."
 
 (defvar relint--suppression-count)
 (defvar relint--complaints
-  ;; list of lists of
-  ;;   [MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
-  ;; with fields:
-  ;;   MESSAGE   string of message
-  ;;   EXPR-POS  position of expression or nil
-  ;;   BEG-POS   exact first position of error or nil
-  ;;   END-POS   exact last position of error or nil
-  ;;   STRING    string inside which the complaint occurs or nil
-  ;;   BEG-IDX   starting index into STRING or nil
-  ;;   END-IDX   ending index into STRING or nil
-  ;;   SEVERITY  `error', `warning' or `info'
+  ;; list of lists of `relint-diag' objects
   )
 
 (defun relint--report-group (group)
-  (let* ((diag (car group))
-         (message (aref diag 0))
-         (expr-pos (aref diag 1))
-         (beg-pos (aref diag 2)))
-  (if (relint--suppression (or expr-pos beg-pos) message)
+  (let ((diag (car group)))
+    (if (relint--suppression (or (relint-diag--expr-pos diag)
+                                 (relint-diag--beg-pos diag))
+                             (relint-diag--message diag))
       (setq relint--suppression-count (1+ relint--suppression-count))
     (push group relint--complaints))))
-
-(defsubst relint--make-diag (message expr-pos beg-pos end-pos
-                             str beg-idx end-idx severity)
-  (vector message expr-pos beg-pos end-pos str beg-idx end-idx severity))
 
 (defun relint--report-one (message expr-pos beg-pos end-pos
                            str beg-idx end-idx severity)
@@ -2670,10 +2669,9 @@ The keys are sorted numerically, in ascending order.")
        (relint--sort-with-key
         ;; Sort by error position if available, expression position otherwise.
         (lambda (g)
-          (let* ((c (car g))
-                 (expr-pos (aref c 1))
-                 (error-pos (aref c 2)))
-            (or error-pos expr-pos)))
+          (let ((c (car g)))
+            (or (relint-diag--beg-pos c)
+                (relint-diag--expr-pos c))))
         complaints)
        relint--suppression-count))))
 
@@ -2843,6 +2841,7 @@ where
 The intent is that BEG-POS..END-POS is the buffer range that
 corresponds to STRING at BEG-IDX..END-IDX, if such a location can be
 determined."
+  ;; FIXME: expose `relint-diag' objects instead of explicit vector?
   (let ((groups (car (relint--scan-buffer buffer))))
     (apply #'append groups)))           ; flatten groups
 
