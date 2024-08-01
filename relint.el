@@ -79,18 +79,17 @@ In interactive mode, relint uses the `relint-buffer-highlight' face instead."
 (cl-defstruct (relint-diag
                (:constructor nil)
                (:constructor
-                relint--make-diag (message expr-pos beg-pos end-pos string
-                                   beg-idx end-idx severity))
+                relint--make-diag (message beg-pos end-pos
+                                   string beg-idx end-idx severity))
                (:copier nil)
                (:type vector)
                (:conc-name relint-diag--))
   message    ; string of message
-  expr-pos   ; position of expression or nil
-  beg-pos    ; exact first position of error or nil
-  end-pos    ; exact last position of error or nil
-  string     ; string inside which the complaint occurs or nil
-  beg-idx    ; starting index into `string' or nil
-  end-idx    ; ending index into `string' or nil
+  beg-pos    ; exact first position of error
+  end-pos    ; exact last position of error, or nil
+  string     ; string inside which the complaint occurs, or nil
+  beg-idx    ; starting index into `string', or nil
+  end-idx    ; ending index into `string', or nil
   severity   ; `error', `warning' or `info'
   )
 
@@ -261,8 +260,7 @@ in case it occupies more than one position in the buffer."
          (beg-idx (relint-diag--beg-idx diag))
          (end-idx (relint-diag--end-idx diag))
          (severity (relint-diag--severity diag))
-         (beg (or (relint-diag--beg-pos diag)
-                  (relint-diag--expr-pos diag)))
+         (beg (relint-diag--beg-pos diag))
          (end (relint-diag--end-pos diag))
          (beg-line (line-number-at-pos beg t))
          (end-line (cond ((eq beg end) beg-line)
@@ -330,22 +328,20 @@ in case it occupies more than one position in the buffer."
 
 (defun relint--report-group (group)
   (let ((diag (car group)))
-    (if (relint--suppression (or (relint-diag--expr-pos diag)
-                                 (relint-diag--beg-pos diag))
+    (if (relint--suppression (relint-diag--beg-pos diag)
                              (relint-diag--message diag))
       (setq relint--suppression-count (1+ relint--suppression-count))
     (push group relint--complaints))))
 
-(defun relint--report-one (message expr-pos beg-pos end-pos
-                           str beg-idx end-idx severity)
+(defun relint--report-one (message beg-pos end-pos str beg-idx end-idx severity)
   (relint--report-group
-   (list (relint--make-diag message expr-pos beg-pos end-pos
+   (list (relint--make-diag message beg-pos end-pos
                             str beg-idx end-idx severity))))
 
 (defun relint--diag-on-string (expr-pos string message beg-idx end-idx severity)
   (let* ((beg-pos (and beg-idx (relint--string-pos expr-pos beg-idx nil)))
          (end-pos (and end-idx (relint--string-pos expr-pos end-idx t))))
-    (relint--make-diag message expr-pos beg-pos end-pos
+    (relint--make-diag message (or beg-pos expr-pos) end-pos
                        string beg-idx end-idx severity)))
 
 (defun relint--report-at-path (start-pos path msg str beg-idx end-idx severity)
@@ -358,13 +354,13 @@ in case it occupies more than one position in the buffer."
 ;; whose extent is a Lisp expression!
 
 (defun relint--warn-at (beg-pos end-pos message)
-  (relint--report-one message nil beg-pos end-pos nil nil nil 'warning))
+  (relint--report-one message beg-pos end-pos nil nil nil 'warning))
 
 (defun relint--warn (start-pos path message &optional str str-beg str-end)
   (relint--report-at-path start-pos path message str str-beg str-end 'warning))
 
 (defun relint--err-at (pos message)
-  (relint--report-one message nil pos nil nil nil nil 'error))
+  (relint--report-one message pos nil nil nil nil 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -2666,13 +2662,8 @@ The keys are sorted numerically, in ascending order.")
     (relint--check-for-misplaced-backslashes)
     (let ((complaints (nreverse relint--complaints)))
       (cons
-       (relint--sort-with-key
-        ;; Sort by error position if available, expression position otherwise.
-        (lambda (g)
-          (let ((c (car g)))
-            (or (relint-diag--beg-pos c)
-                (relint-diag--expr-pos c))))
-        complaints)
+       (relint--sort-with-key (lambda (g) (relint-diag--beg-pos (car g)))
+                              complaints)
        relint--suppression-count))))
 
 (defvar relint-last-target nil
@@ -2776,7 +2767,7 @@ TARGET is the file or directory to use for a repeated run."
 (defun relint--scan-buffer (buffer)
   "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
 COMPLAINTS is a list of (unsuppressed) diagnostics each on the form
-   (MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY)
+   (MESSAGE BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY)
 and SUPPRESSED is the number of suppressed diagnostics."
   (with-current-buffer buffer
     (unless (derived-mode-p 'emacs-lisp-mode)
@@ -2827,12 +2818,11 @@ The buffer must be in emacs-lisp-mode."
   "Scan BUFFER for regexp errors. Return list of diagnostics.
 Each element in the returned list is a vector having the form
 
-  [MESSAGE EXPR-POS BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
+  [MESSAGE BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
 
 where
 
   MESSAGE           the message string
-  EXPR-POS          the position of the flawed expression or nil
   BEG-POS, END-POS  exact bounds in the buffer (inclusive), or nil
   STRING            nil or a string to which the message pertains
   BEG-IDX, END-IDX  bounds in STRING (inclusive) or nil
