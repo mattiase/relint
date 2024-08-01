@@ -137,20 +137,33 @@ and a path."
             (insert "(looking-at (make-string 2 ?^))\n")
             (insert "(looking-at (concat \"ab\" \"cdef\" \"[gg]\"))\n")
             (insert "(string-match \"[xy\" s)\n"))
-          (should
-           (equal
-            (relint-buffer buf)
-            '(["In call to looking-at: Repetition of repetition"
-               28 28 string "broken**regexp" 7 7 warning]
-              ["This is the inner expression"
-               26 27 string "broken**regexp" 5 6 info]
-              ["In call to looking-at: Unescaped literal `^'"
-               50 nil nil "^^" 1 1 warning]
-              ["In call to looking-at: Duplicated `g' inside character alternative"
-               105 105 string "abcdef[gg]" 8 8 warning]
-              ["Previous occurrence here" 104 104 string "abcdef[gg]" 7 7 info]
-              ["In call to string-match: Unterminated character alternative"
-               126 128 string "[xy" 0 2 error]))))
+          (let ((diags (relint-buffer buf)))
+            (should
+             (equal
+              diags
+              '(["In call to looking-at: Repetition of repetition"
+                 28 28 string "broken**regexp" 7 7 warning]
+                ["This is the inner expression"
+                 26 27 string "broken**regexp" 5 6 info]
+                ["In call to looking-at: Unescaped literal `^'"
+                 50 nil nil "^^" 1 1 warning]
+                ["In call to looking-at: Duplicated `g' inside character alternative"
+                 105 105 string "abcdef[gg]" 8 8 warning]
+                ["Previous occurrence here" 104 104 string "abcdef[gg]" 7 7
+                 info]
+                ["In call to string-match: Unterminated character alternative"
+                 126 128 string "[xy" 0 2 error])))
+            ;; test accessors
+            (let ((d (nth 1 diags)))
+                (should (equal (relint-diag-message d)
+                               "This is the inner expression"))
+                (should (equal (relint-diag-beg-pos d) 26))
+                (should (equal (relint-diag-end-pos d) 27))
+                (should (equal (relint-diag-pos-type d) 'string))
+                (should (equal (relint-diag-string d) "broken**regexp"))
+                (should (equal (relint-diag-beg-idx d) 5))
+                (should (equal (relint-diag-end-idx d) 6))
+                (should (equal (relint-diag-severity d) 'info)))))
       (kill-buffer buf))))
 
 (ert-deftest relint-buffer-huge ()

@@ -43,13 +43,12 @@ false positives, or `all', enabling all checks."
   :type '(choice (const :tag "Standard checks only" nil)
                  (const :tag "All checks" all)))
 
-;; FIXME: should this be a defcustom, defface, or both?
 (defface relint-buffer-highlight
   '((t (:inherit highlight)))
   "Face for highlight the string part warned about in the `*relint*' buffer."
   :group 'relint)
 
-;; FIXME: default to underline or reverse?
+;; FIXME: default to underline or reverse? Or `caret' if stdout is non-tty?
 (defcustom relint-batch-highlight '("\e[7m" . "\e[m")
   "How to emphasise part of a string warned about in batch output.
 The value is one of the following:
@@ -82,8 +81,7 @@ In interactive mode, relint uses the `relint-buffer-highlight' face instead."
                 relint--make-diag (message beg-pos end-pos pos-type
                                    string beg-idx end-idx severity))
                (:copier nil)
-               (:type vector)
-               (:conc-name relint-diag--))
+               (:type vector))
   message    ; string of message
   beg-pos    ; first buffer position
   end-pos    ; last buffer position, or nil if only the start available
@@ -259,12 +257,12 @@ in case it occupies more than one position in the buffer."
    (1+ (current-column))))
 
 (defun relint--output-complaint (error-buffer file diag)
-  (let* ((str (relint-diag--string diag))
-         (beg-idx (relint-diag--beg-idx diag))
-         (end-idx (relint-diag--end-idx diag))
-         (severity (relint-diag--severity diag))
-         (beg (relint-diag--beg-pos diag))
-         (end (relint-diag--end-pos diag))
+  (let* ((str (relint-diag-string diag))
+         (beg-idx (relint-diag-beg-idx diag))
+         (end-idx (relint-diag-end-idx diag))
+         (severity (relint-diag-severity diag))
+         (beg (relint-diag-beg-pos diag))
+         (end (relint-diag-end-pos diag))
          (beg-line (line-number-at-pos beg t))
          (end-line (cond ((eq beg end) beg-line)
                          (end (line-number-at-pos end t))))
@@ -311,7 +309,7 @@ in case it occupies more than one position in the buffer."
       (format "%s:%s: " file loc-str)
       (cond ((eq severity 'error) "error: ")
             ((eq severity 'info) "info: "))
-      (relint-diag--message diag)
+      (relint-diag-message diag)
       (cond ((and beg-idx end-idx (< beg-idx end-idx))
              (format " (pos %d..%d)" beg-idx end-idx))
             (beg-idx (format " (pos %d)" beg-idx)))
@@ -331,8 +329,8 @@ in case it occupies more than one position in the buffer."
 
 (defun relint--report-group (group)
   (let ((diag (car group)))
-    (if (relint--suppression (relint-diag--beg-pos diag)
-                             (relint-diag--message diag))
+    (if (relint--suppression (relint-diag-beg-pos diag)
+                             (relint-diag-message diag))
       (setq relint--suppression-count (1+ relint--suppression-count))
     (push group relint--complaints))))
 
@@ -2664,7 +2662,7 @@ The keys are sorted numerically, in ascending order.")
     (relint--check-for-misplaced-backslashes)
     (let ((complaints (nreverse relint--complaints)))
       (cons
-       (relint--sort-with-key (lambda (g) (relint-diag--beg-pos (car g)))
+       (relint--sort-with-key (lambda (g) (relint-diag-beg-pos (car g)))
                               complaints)
        relint--suppression-count))))
 
@@ -2817,27 +2815,25 @@ The buffer must be in emacs-lisp-mode."
 
 ;;;###autoload
 (defun relint-buffer (buffer)
-  "Scan BUFFER for regexp errors. Return list of diagnostics.
-Each element in the returned list is a vector having the form
+  "Scan BUFFER for regexp mistakes. Return list of diagnostics.
+Each element in the returned list is an object with the slots
 
-  [MESSAGE BEG-POS END-POS STRING BEG-IDX END-IDX SEVERITY]
+  message    the message string
+  beg-pos    starting position in the buffer
+  end-pos    ending position the buffer (inclusive), or nil
+  pos-type   if `string', then the buffer at BEG-POS..END-POS is inside
+             a string literal corresponding to STRING at BEG-IDX..END-IDX;
+             otherwise BEG-POS..END-POS just point to code
+  string     the string the message is about, or nil
+  beg-idx    starting offset in STRING, or nil
+  end-idx    ending offset in STRING (inclusive), or nil
+  severity   `error', `warning' or `info'
 
-where
+Accessors are prefixed by `relint-diag-': eg, (relint-diag-message D) returns
+the message of object D.
 
-  MESSAGE           the message string
-  BEG-POS, END-POS  exact bounds in the buffer (inclusive), or nil
-  POS-TYPE          if `string', the buffer at BEG-POS..END-POS is inside
-                    a string literal corresponding to STRING at
-                    BEG-IDX..END-IDX; otherwise BEG-POS..END-POS just point
-                    to code
-  STRING            nil or a string to which the message pertains
-  BEG-IDX, END-IDX  bounds in STRING (inclusive) or nil
-  SEVERITY          `error', `warning' or `info'
-
-The intent is that BEG-POS..END-POS is the buffer range that
-corresponds to STRING at BEG-IDX..END-IDX, if such a location can be
-determined."
-  ;; FIXME: expose `relint-diag' objects instead of explicit vector?
+BEG-POS..END-POS is the range of interest in the buffer, and may
+correspond to the range BEG-IDX..END-IDX in STRING but not necessarily so."
   (let ((groups (car (relint--scan-buffer buffer))))
     (apply #'append groups)))           ; flatten groups
 
