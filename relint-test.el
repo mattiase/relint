@@ -19,6 +19,7 @@
 
 (require 'relint)
 (require 'ert)
+(require 'cl-lib)
 
 ;; Required for some of the source in test/
 (require 'subr-x)
@@ -194,13 +195,12 @@ and a path."
           (with-current-buffer buf
             (emacs-lisp-mode)
             (insert "(print \"c \\xf \\xg \\x d\")\n"))
-          (let* ((diags (relint-buffer buf))
-                 (err (condition-case err
-                          (read-from-string "?\\x")
-                        (error (prin1-to-string err)))))
+          (let ((diags (relint-buffer buf)))
             (should (equal
                      ;; Ignore 'invalid escape char syntax' error.
-                     (remove (assoc err diags) diags)
+                     (cl-remove-if (lambda (d)
+                                     (eq (relint-diag-severity d) 'error))
+                                   diags)
                      '(["Character escape `\\x' not followed by hex digit"
                         15 16 nil nil nil nil warning]
                        ["Character escape `\\x' not followed by hex digit"
