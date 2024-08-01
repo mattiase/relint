@@ -2,6 +2,29 @@
                         ======================
 
 
+Version 2.0
+
+- Compatibility break: `relint-buffer` now returns a list of `relint-diag`
+  objects.  Use the `relint-diag-` accessors for reading their slots.
+  Each object now has BEGIN..END ranges instead of just the starting point,
+  which allows a user interface to highlight the corresponding part
+  of the code buffer in a suitable way.
+  There are now the severity levels `error`, `warning` and `info`.
+
+- When running interactively (`relint-directory`, `relint-file` or
+  `relint-current-buffer`), the new `relint-buffer-highlight` face is
+  used for relevant parts of a string in the `*relint*` buffer.
+  This face can be customised or themed by the user.
+
+- In batch mode (`relint-batch`), the new variable `relint-batch-highlight`
+  is used to determine how relevant parts of a string are marked in
+  the output. The default is to use reverse video for terminal display.
+  This variable can be customised by the user.
+
+- Some performance improvements
+
+- Requires xr 2.0 and Emacs 27.1 or later
+
 Version 1.24
 - Fix a `next-error' bug
 - Some performance improvements
