@@ -79,17 +79,20 @@ In interactive mode, relint uses the `relint-buffer-highlight' face instead."
 (cl-defstruct (relint-diag
                (:constructor nil)
                (:constructor
-                relint--make-diag (message beg-pos end-pos
+                relint--make-diag (message beg-pos end-pos pos-type
                                    string beg-idx end-idx severity))
                (:copier nil)
                (:type vector)
                (:conc-name relint-diag--))
   message    ; string of message
-  beg-pos    ; exact first position of error
-  end-pos    ; exact last position of error, or nil
+  beg-pos    ; first buffer position
+  end-pos    ; last buffer position, or nil if only the start available
+  pos-type   ; `string' if buffer at BEG-POS..END-POS is inside a string literal
+             ; corresponding to STRING at BEG-IDX..END-IDX;
+             ; any other value means that BEG-POS..END-POS just point to code
   string     ; string inside which the complaint occurs, or nil
-  beg-idx    ; starting index into `string', or nil
-  end-idx    ; ending index into `string', or nil
+  beg-idx    ; first index into STRING, or nil
+  end-idx    ; last index into STRING, or nil
   severity   ; `error', `warning' or `info'
   )
 
@@ -333,15 +336,15 @@ in case it occupies more than one position in the buffer."
       (setq relint--suppression-count (1+ relint--suppression-count))
     (push group relint--complaints))))
 
-(defun relint--report-one (message beg-pos end-pos str beg-idx end-idx severity)
+(defun relint--report-nonstring (message beg-pos end-pos severity)
   (relint--report-group
-   (list (relint--make-diag message beg-pos end-pos
-                            str beg-idx end-idx severity))))
+   (list (relint--make-diag message beg-pos end-pos nil nil nil nil severity))))
 
 (defun relint--diag-on-string (expr-pos string message beg-idx end-idx severity)
   (let* ((beg-pos (and beg-idx (relint--string-pos expr-pos beg-idx nil)))
          (end-pos (and end-idx (relint--string-pos expr-pos end-idx t))))
     (relint--make-diag message (or beg-pos expr-pos) end-pos
+                       (and beg-pos end-pos 'string)
                        string beg-idx end-idx severity)))
 
 (defun relint--report-at-path (start-pos path msg str beg-idx end-idx severity)
@@ -350,17 +353,17 @@ in case it occupies more than one position in the buffer."
      (list (relint--diag-on-string
             expr-pos str msg beg-idx end-idx severity)))))
 
-;; FIXME: need a way to report a diagnostic for an interval-location
-;; whose extent is a Lisp expression!
+;; FIXME: if all we have is the start of a Lisp sexp, it should be easy to
+;; find where it ends!
 
-(defun relint--warn-at (beg-pos end-pos message)
-  (relint--report-one message beg-pos end-pos nil nil nil 'warning))
+(defun relint--warn-at-pos (beg-pos end-pos message)
+  (relint--report-nonstring message beg-pos end-pos 'warning))
 
 (defun relint--warn (start-pos path message &optional str str-beg str-end)
   (relint--report-at-path start-pos path message str str-beg str-end 'warning))
 
-(defun relint--err-at (pos message)
-  (relint--report-one message pos nil nil nil nil 'error))
+(defun relint--err-at-pos (pos message)
+  (relint--report-nonstring message pos nil 'error))
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
@@ -2541,10 +2544,10 @@ Return a list of (FORM . STARTING-POSITION)."
              (goto-char pos)
              (forward-sexp 1))
             (t
-             (relint--err-at (point) (prin1-to-string err))
+             (relint--err-at-pos (point) (prin1-to-string err))
              (setq keep-going nil))))
           (error
-           (relint--err-at (point) (prin1-to-string err))
+           (relint--err-at-pos (point) (prin1-to-string err))
            (setq keep-going nil)))
         (when (consp form)
           (push (cons form pos) forms))))
@@ -2593,13 +2596,12 @@ STRING-START is the start of the string literal (first double quote)."
     (unless (or (bolp)
                 (and (memq c '(?\( ?\) ?\[ ?\] ?\'))
                      (relint--in-doc-string-p string-start)))
-      (relint--warn-at (point) (1+ (point))
-                       (if (eq c ?x)
-                           (format-message
-                            "Character escape `\\x' not followed by hex digit")
-                         (format-message
-                          "Ineffective string escape `\\%s'"
-                          (relint--escape-string (char-to-string c) nil)))))))
+      (relint--warn-at-pos
+       (point) (1+ (point))
+       (if (eq c ?x)
+           (format-message "Character escape `\\x' not followed by hex digit")
+         (format-message "Ineffective string escape `\\%s'"
+                         (relint--escape-string (char-to-string c) nil)))))))
 
 (defun relint--check-for-misplaced-backslashes ()
   "Check for misplaced backslashes in the current buffer."
@@ -2824,6 +2826,10 @@ where
 
   MESSAGE           the message string
   BEG-POS, END-POS  exact bounds in the buffer (inclusive), or nil
+  POS-TYPE          if `string', the buffer at BEG-POS..END-POS is inside
+                    a string literal corresponding to STRING at
+                    BEG-IDX..END-IDX; otherwise BEG-POS..END-POS just point
+                    to code
   STRING            nil or a string to which the message pertains
   BEG-IDX, END-IDX  bounds in STRING (inclusive) or nil
   SEVERITY          `error', `warning' or `info'
