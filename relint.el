@@ -4,7 +4,7 @@
 
 ;; Author: Mattias Engdegård <mattiase@acm.org>
 ;; Version: 1.24
-;; Package-Requires: ((xr "1.25") (emacs "26.1"))
+;; Package-Requires: ((xr "1.25") (emacs "27.1"))
 ;; URL: https://github.com/mattiase/relint
 ;; Keywords: lisp, regexps
 
@@ -365,7 +365,6 @@ in case it occupies more than one position in the buffer."
 
 (defun relint--escape-string (str escape-printable)
   (replace-regexp-in-string
-   ;; Use pair notation for raw chars; "\200-\377" is buggy in Emacs 26.
    (rx (any cntrl ?\177 (#x3fff80 . #x3fffff) ?\\ ?\"))
    (lambda (s)
      (let ((c (logand (string-to-char s) #xff)))
@@ -1757,9 +1756,7 @@ than just to a surrounding or producing expression."
            (push (cons arg arg) ranges))
 
           ((stringp arg)
-           ;; `string-to-multibyte' was marked obsolete in Emacs 26,
-           ;; but no longer is.
-           (let* ((s (with-no-warnings (string-to-multibyte arg)))
+           (let* ((s (string-to-multibyte arg))
                   (j 0)
                   (len (length s)))
              (while (< j len)
@@ -2757,12 +2754,10 @@ TARGET is the file or directory to use for a repeated run."
 
 (defun relint--tree-files (dir)
   (let ((re (rx bos (not (any ".")) (* anything) ".el" eos)))
-    (if (eval-when-compile (>= emacs-major-version 27))
-        (directory-files-recursively
-         dir re nil
-         ;; Save time by not pointlessly descending into huge .git directories.
-         (lambda (s) (not (string-suffix-p "/.git" s))))
-      (directory-files-recursively dir re))))
+    (directory-files-recursively
+     dir re nil
+     ;; Save time by not pointlessly descending into huge .git directories.
+     (lambda (s) (not (string-suffix-p "/.git" s))))))
 
 (defun relint--scan-buffer (buffer)
   "Scan BUFFER; return (COMPLAINTS . SUPPRESSED) where
