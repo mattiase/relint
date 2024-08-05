@@ -3,7 +3,7 @@ XRDIR=../xr
 EMFLAGS=-Q -batch -L . -L $(XRDIR)
 BYTECOMPFLAGS=--eval '(setq byte-compile-error-on-warn t)'
 
-EL=$(wildcard *.el)
+EL = relint.el relint-test.el
 ELC=$(EL:.el=.elc)
 
 .PHONY: build check clean
