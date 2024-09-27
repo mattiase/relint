@@ -44,8 +44,8 @@ false positives, or `all', enabling all checks."
                  (const :tag "All checks" all)))
 
 (defface relint-buffer-highlight
-  '((t (:inherit highlight)))
-  "Face for highlight the string part warned about in the `*relint*' buffer."
+  '((t :inherit highlight))
+  "Face for highlighting the string part warned about in the `*relint*' buffer."
   :group 'relint)
 
 ;; FIXME: default to underline or reverse? Or `caret' if stdout is non-tty?
