@@ -2677,8 +2677,9 @@ The keys are sorted numerically, in ascending order.")
       (setq default-directory base-dir))))
 
 (defun relint--finish (errors suppressed error-buffer quiet)
-  (let* ((msg (format "%d error%s%s"
-                      errors (if (= errors 1) "" "s")
+  (let* ((problems (- errors suppressed))
+         (msg (format "%d problem%s%s"
+                      problems (if (= problems 1) "" "s")
                       (if (zerop suppressed)
                           ""
                         (format " (%s suppressed)" suppressed)))))
