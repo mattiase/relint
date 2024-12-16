@@ -857,13 +857,30 @@ not be evaluated safely."
         (let ((arg (relint--eval (car body))))
           (delete-dups (copy-sequence arg))))
 
+       ;; `cl-flet', `cl-flet*' and `cl-labels': these macroexpand their bodies
+       ;; eagerly which would be unsafe, so instead we transform them into
+       ;; `let' etc, as if it were a Lisp-1. Calls to local functions are then
+       ;; transformed as we encounter them.
+       ((memq head '(cl-flet cl-flet* cl-labels))
+        (let ((f (cdr (assq head '((cl-flet . let)
+                                   (cl-flet* . let*)
+                                   (cl-labels . letrec)))))
+              (bindings (mapcar (lambda (b)
+                                  (if (and (consp b)
+                                           (symbolp (car b))
+                                           (> (length b) 2))
+                                      `(,(car b)
+                                        (lambda ,(cadr b) ,@(cddr b)))
+                                    b))
+                                (car body))))
+          (relint--eval `(,f ,bindings ,@(cdr body)))))
+
        ;; Safe macros that expand to pure code, and their auxiliary macros.
-       ;; FIXME: Some of these aren't actually safe at all, since they
-       ;; may expand their arguments eagerly, running arbitrary code!
+       ;; FIXME: Is this safe?
        ((memq head '(when unless
                      \` backquote-list*
                      letrec
-                     cl-case cl-loop cl-block cl-flet cl-flet* cl-labels))
+                     cl-case cl-block cl-loop))
         (relint--eval
          ;; Suppress any warning message arising from macro-expansion;
          ;; it will just confuse the user and we can't give a good location.
@@ -871,6 +888,7 @@ not be evaluated safely."
            (macroexpand-1 form))))
 
        ;; Expanding pcase can fail if it uses user-defined pcase macros.
+       ;; FIXME: Is this safe?
        ((memq head '(pcase pcase-let pcase-let* pcase--flip))
         (relint--eval
          (condition-case nil
@@ -1110,6 +1128,15 @@ not be evaluated safely."
         (relint--eval (cons (cdr (assq head relint--safe-cl-alternatives))
                             body)))
        
+       ;; Pretend that we are using a Lisp-1 for calls to functions that are
+       ;; locally bound, to make `cl-labels' etc work.  This should be good
+       ;; enough in practice.
+       ((assq head relint--locals)
+        (let ((fval (car-safe (cdr (assq head relint--locals)))))
+          (if (eq (car-safe fval) 'lambda)
+              (relint--eval `(funcall ,fval ,@body))
+            (throw 'relint-eval 'no-value))))
+
        (t
         (throw 'relint-eval 'no-value))))))
 

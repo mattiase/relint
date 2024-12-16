@@ -14,3 +14,21 @@
   (looking-at
    (cl-labels ((f (x) (concat "*" x)))  ; "*C"
      (f "C"))))
+
+;; Safety tests
+
+(defun test-cl-flet-safety ()
+  (looking-at
+   (concat
+    (cl-flet ((f (x) (concat "+" x)))
+      (eval-when-compile (print "safety failure") (kill-emacs 1))
+      (f "S"))
+    (cl-flet* ((f (x) (concat "+" x)))
+      (eval-when-compile (print "safety failure") (kill-emacs 1))
+      (f "S"))
+    (cl-labels ((f (x) (concat "+" x)))
+      (eval-when-compile (print "safety failure") (kill-emacs 1))
+      (f "S"))
+    )))
+
+
