@@ -887,15 +887,6 @@ not be evaluated safely."
          (let ((inhibit-message t))
            (macroexpand-1 form))))
 
-       ;; Expanding pcase can fail if it uses user-defined pcase macros.
-       ;; FIXME: Is this safe?
-       ((memq head '(pcase pcase-let pcase-let* pcase--flip))
-        (relint--eval
-         (condition-case nil
-             (let ((inhibit-message t))
-               (macroexpand-1 form))
-           (error (throw 'relint-eval 'no-value)))))
-
        ;; catch: as long as nobody throws, this naïve code is fine.
        ((eq head 'catch)
         (relint--eval-body (cdr body)))
