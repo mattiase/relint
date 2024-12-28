@@ -522,6 +522,8 @@ or (NAME val VAL), for values.")
 (defvar relint--eval-mutables nil
   "List of local variables mutable in the current evaluation context.")
 
+(eval-and-compile
+
 (defconst relint--safe-functions
   '(cons list append
     concat
@@ -576,6 +578,8 @@ and reasonably pure (some depend on variables in fairly uninteresting ways,
 like `case-fold-search').
 More functions could be added if there is evidence that it would
 help in evaluating more regexp strings.")
+
+)
 
 (defconst relint--safe-alternatives
   '((nconc    . append)
@@ -763,7 +767,7 @@ not be evaluated safely."
         form)
 
        ;; Functions considered safe.
-       ((memq head relint--safe-functions)
+       ((memq head (eval-when-compile relint--safe-functions))
         (let ((args (mapcar #'relint--eval body)))
           ;; Catching all errors isn't wonderful, but sometimes a global
           ;; variable argument has an unsuitable default value which is
