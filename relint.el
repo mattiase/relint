@@ -1227,7 +1227,7 @@ source."
        (dolist (arg args)
          (relint--eval-list-iter fun arg (cons i path))
          (setq i (1+ i)))))
-    (`(\` ,args)
+    (`(,'\` ,args)
      (when (consp args)
        (let ((i 0))
          (let ((p0 (cons 1 path)))
