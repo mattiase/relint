@@ -567,7 +567,9 @@ or (NAME val VAL), for values.")
     sequencep vectorp arrayp type-of
     + - * / % mod 1+ 1- max min < <= = > >= /= abs expt sqrt
     ash lsh logand logior logxor lognot logb logcount
-    floor ceiling round truncate float)
+    floor ceiling round truncate float
+    cl--block-wrapper  ; alias for `identity'
+    )
   "Functions that are safe to call during evaluation.
 Except for altering the match state, these are side-effect-free
 and reasonably pure (some depend on variables in fairly uninteresting ways,
@@ -894,10 +896,6 @@ not be evaluated safely."
        ;; condition-case: as long as there is no error...
        ((eq head 'condition-case)
         (relint--eval (cadr body)))
-
-       ;; cl--block-wrapper: works like identity, more or less.
-       ((eq head 'cl--block-wrapper)
-        (relint--eval (car body)))
 
        ;; Functions taking a function as first argument.
        ((memq head '(apply funcall mapconcat
