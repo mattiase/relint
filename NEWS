@@ -2,6 +2,11 @@
                         ======================
 
 
+Version 2.1
+
+- Robustness fixes
+- Summary now counts unsuppressed problems
+
 Version 2.0
 
 - Compatibility break: `relint-buffer` now returns a list of `relint-diag`
