@@ -724,12 +724,6 @@ into something that can be called safely."
     (lambda (n list)
       (cl-loop repeat n for x in list collect x))))
 
-(defalias 'relint--proper-list-p
-  (if (fboundp 'proper-list-p)
-      #'proper-list-p
-    (lambda (x)
-      (and (listp x) (ignore-errors (length x))))))
-
 (defun relint--eval (form)
   "Evaluate a form. Throw `relint-eval' `no-value' if something could
 not be evaluated safely."
@@ -2052,7 +2046,7 @@ directly."
   (let ((head (car form))
         (args (cdr form)))
     (cond
-     ((not (relint--proper-list-p args))
+     ((not (proper-list-p args))
       ;; Dotted list: just recurse.
       (let ((index 0))
         (while (consp form)
