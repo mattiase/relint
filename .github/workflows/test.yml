@@ -33,7 +33,7 @@ jobs:
           path: relint
 
       - name: Check out xr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: mattiase/xr
           path: xr
