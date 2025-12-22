@@ -545,7 +545,7 @@ or (NAME val VAL), for values.")
     string-equal string= string< string-lessp string> string-greaterp
     compare-strings
     char-equal string-match-p
-    string-match split-string
+    string-match split-string string-split
     wildcard-to-regexp
     combine-and-quote-strings split-string-and-unquote
     string-to-multibyte string-as-multibyte string-to-unibyte string-as-unibyte
@@ -2246,7 +2246,7 @@ directly."
         (let ((re-arg (cadr args)))
           (relint--check-file-name-re re-arg (cons 'call-to (car form))
                                       pos (cons 2 path))))
-       ((memq head '( split-string split-string-and-unquote
+       ((memq head '( split-string string-split split-string-and-unquote
                       string-trim-left string-trim-right string-trim
                       treesit-induce-sparse-tree treesit-search-forward
                       treesit-search-forward-goto treesit-search-subtree))
@@ -2265,7 +2265,7 @@ directly."
                 (relint--check-re right (cons 'call-to (car form))
                                   pos (cons 3 path)))))
           ;; split-string has another regexp argument (trim, arg 4)
-          (when (and (eq (car form) 'split-string)
+          (when (and (memq (car form) '(split-string string-split))
                      (cadr rest))
             (let ((trim (cadr rest)))
               (unless (and (symbolp trim)
