@@ -1588,7 +1588,7 @@ parameter is regexp-generating."
                                (0+ (any "+ #" ?-))
                                (0+ digit)
                                (opt "." (0+ digit))
-                               (group (any "%sdioxXefgcS")))
+                               (group (any "%sdibBoxXefgcS")))
                               template start))
       (let ((percent (match-beginning 0))
             (type (string-to-char (match-string 1 template)))
