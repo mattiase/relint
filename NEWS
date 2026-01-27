@@ -2,6 +2,11 @@
                         ======================
 
 
+Version 2.2
+
+- Parse Emacs 31 format strings
+- Check regexp arguments to string-split (alias for split-string)
+
 Version 2.1
 
 - Robustness fixes
